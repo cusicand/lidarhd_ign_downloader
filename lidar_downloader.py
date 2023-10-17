@@ -11,7 +11,6 @@ import wget
 import json
 import pdal
 
-import pandas as pd
 import geopandas as gpd
 #%%
 def pdal_json_pipeline(input_laz_fn, out_tif_fn, out_type="mean", tr=1):

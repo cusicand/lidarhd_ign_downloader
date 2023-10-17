@@ -1,0 +1,12 @@
+name: py39
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.9
+  - gdal
+  - libgdal
+  - proj>=7.2
+  - geopandas
+  - pdal
+  - wget
+  - pathlib2
