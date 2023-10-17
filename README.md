@@ -1,4 +1,4 @@
-# IGN LiDQR HD downloader
+# IGN LiDAR HD downloader
 Python script to download and resample LiDAR HD pre-clasified tiles from IGN.
 
 ## Installation
@@ -17,6 +17,8 @@ vi ~/.bashrc or nano ~/.bashrc
 export LIDAR_PATH=$HOME/lidarhd_ign_downloader
 export PATH=$LIDAR_PATH:$PATH            
 export PYTHONPATH=$LIDAR_PATH:$PYTHONPATH
+
+chmod +x lidar_downloader.py
 ```
 Use `source ~/.bashrc` to reload changes.
 
