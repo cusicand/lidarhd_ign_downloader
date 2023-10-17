@@ -82,7 +82,7 @@ def main():
 
     if not tiles_fn.exists():
          wget.download(url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe", out=str(home_path.joinpath("resources")))
-         os.system(f"unzip {str(home_path.joinpath('resources', '*.zip'))}")
+         os.system(f"unzip {str(home_path.joinpath('resources', 'grille.zip'))}")
     # Reading shapefiles using GeoPandas. Can take several seconds
     tiles_df = gpd.read_file(tiles_fn)
     aoi_df = gpd.read_file(args.aoi)
