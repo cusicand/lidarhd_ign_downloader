@@ -55,8 +55,6 @@ def getparser():
         help="Name of output directory (aoi). Default value : aoi")  
     parser.add_argument("-tr", "--dem_resolution", type=float, default=1.0,
         help="resolution of output DEM. Default value : 1.0")
-    parser.add_argument("-res", "--resampling_method", type=str, choices=["near", "bilinear", "cubic", "average"], default="bilinear",
-        help="resampling method")
     return parser
 #%%
 def main():
@@ -64,25 +62,26 @@ def main():
     parser = getparser()
     args = parser.parse_args()
 
-    workdir = Path.cwd()
-    print(f"Working on: {workdir}")
+    # workdir = Path.cwd()
+    workdir = Path(__file__).parent
+    print(f"We assume that all data will be stored in $Home/lidarhd_ign_downloader/extractions\nWorking on: {workdir}")
 
     # We assume that all data will be stored in $Home/lidarhd_ign_downloader/extractions
     # home_path = f"path/to/the/other/location"
-    home_path = Path.home().joinpath("lidarhd_ign_downloader")
-    extraction_path = home_path.joinpath("extractions")
+    # home_path = workdir.home()
+    extraction_path = workdir.joinpath("extractions")
     if not extraction_path.exists():
         # Creating directory if not exist
         extraction_path.mkdir()
     #END if
-    tiles_fn = home_path.joinpath("resources", "TA_diff_pkk_lidarhd_classe.shp")
+    tiles_fn = workdir.joinpath("resources", "TA_diff_pkk_lidarhd_classe.shp")
 
-    if not home_path.joinpath("resources").exists():
-        home_path.joinpath("resources").mkdir()
+    if not workdir.joinpath("resources").exists():
+        workdir.joinpath("resources").mkdir()
 
     if not tiles_fn.exists():
-         wget.download(url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe", out=str(home_path.joinpath("resources")))
-         os.system(f"unzip {str(home_path.joinpath('resources', 'grille.zip'))} -d {str(home_path.joinpath('resources'))}")
+         wget.download(url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe", out=str(workdir.joinpath("resources")))
+         os.system(f"unzip {str(workdir.joinpath('resources', 'grille.zip'))} -d {str(workdir.joinpath('resources'))}")
     # Reading shapefiles using GeoPandas. Can take several seconds
     tiles_df = gpd.read_file(tiles_fn)
     aoi_df = gpd.read_file(args.aoi)
