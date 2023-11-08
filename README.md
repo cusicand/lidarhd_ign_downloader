@@ -35,9 +35,9 @@ Then, we can switch between several parameters like:.
 
 below an example of how to extract data by using an AOI file:
 
-`python lidarhd_downloader.py some_amazing_name.shp --outdir TEST -tr 1`
+`python lidarhd_downloader.py some_amazing_name.shp -tr 1`
 
-**NOTE:** The script will iterate through all the features (polygons) within the shapefile. For that, you need to specify a column with the 'aoi_name'. In the Git repository you will find an example of a tset shapefile.
+**NOTE:** The script will iterate through all the features (polygons) within the shapefile creating a folder for each specific AOI. For that, you need to specify a column with the 'aoi_name'. In the Git repository you will find an example of a test shapefile.
 
 ## Required packages
 - Python 3.9
