@@ -29,14 +29,15 @@ If you have a proper python environment already installed, you can install the p
 
 Type `python lidar_downloader.py -h` to access to the help of the tool.
 
-This small tool needs and Area of Interest (AOI) in shapefile format as mandatory argument.
-Then, we can switch between several parameters like:
-- `-o` or `--outdir` to specify the output directory.
+This small tool needs and Area of Interest (AOI) in shapefile (`some_amazing_name.shp`) format as mandatory argument.
+Then, we can switch between several parameters like:.
 - `-tr` or `--dem_resolution` to select the desired resolution of the output DEM.
 
 below an example of how to extract data by using an AOI file:
 
-`python lidarhd_downloader.py aoi.shp --outdir TEST -tr 1`
+`python lidarhd_downloader.py some_amazing_name.shp --outdir TEST -tr 1`
+
+**NOTE:** The script will iterate through all the features (polygons) within the shapefile. For that, you need to specify a column with the 'aoi_name'. In the Git repository you will find an example of a tset shapefile.
 
 ## Required packages
 - Python 3.9
