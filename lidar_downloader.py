@@ -2,9 +2,9 @@
 # coding=utf-8
 #%%
 import os
-import sys
 import time
 import argparse
+import subprocess
 
 from pathlib import Path
 import wget
@@ -88,10 +88,12 @@ def getparser():
     parser.add_argument("aoi", type=str,
         help="path to image aoi.shp file")
     # OPTIONNALS
-    parser.add_argument("-tr", "--dem_resolution", type=float, default=1.0,
-        help="resolution of output DEM. Default value : 1.0")
     parser.add_argument("-out_data", "--out_data_path", type=str, default=None,
         help="Out data-path directory. If not specified, data will be stored in lidar_downloader.py base-path by default.")
+    parser.add_argument("-tr", "--dem_resolution", type=float, default=1.0,
+        help="resolution of output DEM. Default value : 1.0")
+    parser.add_argument("-dtype", "--file_data_type", type=str, default='gtiff', choices=['gtiff', 'vrt'],
+        help="Outout data format between GeoTIff and Virtual Dataset (VRT). Default value : GTiff")    
     return parser
 #END def
 #%%
@@ -105,12 +107,12 @@ def main():
         print(f"As not out_path have been specified, data will be stored in $Home/lidarhd_ign_downloader/raw_laz_data\n-----")
     else:
         workdir = Path(args.out_data_path)
+        if not workdir.exists():
+            workdir.mkdir()
+        #END if
         print(f"Data will be stored in {workdir}/raw_laz_data\n-----")
     #END if
     print(f"Working on: {workdir}")
-    # We assume that all data will be stored in $Home/lidarhd_ign_downloader/extractions
-    # home_path = f"path/to/the/other/location"
-    # home_path = workdir.home()
     extraction_path = workdir.joinpath("raw_laz_data")
     if not extraction_path.exists():
         # Creating directory if not exist
@@ -120,10 +122,13 @@ def main():
 
     if not workdir.joinpath("ign_resources").exists():
         workdir.joinpath("ign_resources").mkdir()
-
+    #END if
     if not tiles_fn.exists():
-         wget.download(url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe", out=str(workdir.joinpath("ign_resources")))
-         os.system(f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}")
+        wget.download(url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe", out=str(workdir.joinpath("ign_resources")))
+        subprocess.run(f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}",
+                       shell = True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        # os.system(f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}")
+    #END if
     # Reading shapefiles using GeoPandas. Can take several seconds
     tiles_df = gpd.read_file(tiles_fn)
     aoi_df = gpd.read_file(args.aoi)
@@ -134,12 +139,12 @@ def main():
         selection = get_lidar_tiles(tiles_df, aoi_df.loc[[i]])
         print(f"{len(selection)} tiles intersects '{aoi_df.loc[[i]].aoi_name.values[0]}'\n-----")
         aoi_path = workdir.joinpath(aoi_df.loc[[i]].aoi_name.values[0])
+        # Check if directory exist
         if not aoi_path.exists():
-            # Creating directory if not exist
             aoi_path.mkdir()
         #END if
+        print(f"{len(selection)} tiles found . . .\n-----")
         for g in range(len(selection)):
-            print(f"{len(selection)} tiles found . . .\n-----")
             download_data(selection.iloc[[g]], extraction_path)
         # ENd for
         for j in tqdm(range(len(selection))):
@@ -152,11 +157,18 @@ def main():
             pipeline = pdal.Pipeline(pdal_json_str).execute()
         #END for
         # Merging all raster files info single one.
+        # TODO: solve problem with border when mosaic tiles.
         os.chdir(aoi_path)
-        cmd = f"gdal_merge.py -of GTiff -ot Float32 \
-            -ps {args.dem_resolution} {args.dem_resolution} -n -9999 -a_nodata -9999 \
-            -o {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.tif *.tif"
-        os.system(cmd)
+        # Merge all tiles by a given resolution
+        if args.file_data_type == 'gtiff':
+            cmd = f"gdal_merge.py -of GTiff -ot Float32 \
+                -ps {args.dem_resolution} {args.dem_resolution} -n -9999 -a_nodata -9999 \
+                -o {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.tif *.tif"
+        if args.file_data_type == 'vrt':
+            cmd = f"gdalbuildvrt -tr {args.dem_resolution} {args.dem_resolution} \
+                -r bilinear {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.vrt *.tif"
+        subprocess.run(cmd,shell = True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        # os.system(cmd)
     #END for
 # %%
 if __name__ == "__main__":

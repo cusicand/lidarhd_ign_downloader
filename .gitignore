@@ -11,3 +11,4 @@
 *.laz
 *.tif
 __pycache__
+*.ipynb
