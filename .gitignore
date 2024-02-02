@@ -1,12 +1,13 @@
 # shapfile extensions
-# *.dbf
-# *.prj
-# *.shp
-# *.shx
-# *.cpg
-# *.qmd
-# *.qix
+*.dbf
+*.prj
+*.shp
+*.shx
+*.cpg
+*.qmd
+*.qix
 # heavy files
 *.zip
 *.laz
 *.tif
+__pycache__
