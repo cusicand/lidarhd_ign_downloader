@@ -146,7 +146,8 @@ def main():
         print(f"{len(selection)} tiles found . . .\n-----")
         for g in range(len(selection)):
             download_data(selection.iloc[[g]], extraction_path)
-        # ENd for
+        # END for
+        list_tiff_files = []
         for j in tqdm(range(len(selection))):
             laz_path = extraction_path.joinpath(selection['nom_pkk'].values[j])
             laz_fn = (laz_path.name).split('.')[0]
@@ -155,18 +156,22 @@ def main():
             json_pipeline = pdal_json_pipeline(str(laz_path), str(dem_out_path), out_type="mean", tr=args.dem_resolution)
             pdal_json_str = json.dumps(json_pipeline)
             pipeline = pdal.Pipeline(pdal_json_str).execute()
+            list_tiff_files.append(str(dem_out_path))
         #END for
         # Merging all raster files info single one.
         # TODO: solve problem with border when mosaic tiles.
         os.chdir(aoi_path)
         # Merge all tiles by a given resolution
+
         if args.file_data_type == 'gtiff':
             cmd = f"gdal_merge.py -of GTiff -ot Float32 \
                 -ps {args.dem_resolution} {args.dem_resolution} -n -9999 -a_nodata -9999 \
-                -o {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.tif *.tif"
+                -o {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.tif {' '.join(list_tiff_files)}"
+            # print(cmd)
         if args.file_data_type == 'vrt':
             cmd = f"gdalbuildvrt -tr {args.dem_resolution} {args.dem_resolution} \
-                -r bilinear {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.vrt *.tif"
+                -r bilinear {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.vrt {' '.join(list_tiff_files)}"
+            # print(cmd)
         subprocess.run(cmd,shell = True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         # os.system(cmd)
     #END for
