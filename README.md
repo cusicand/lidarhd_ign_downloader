@@ -34,14 +34,14 @@ Run the next command lines in your command-line prompt:
 
 `conda activate <your-env-name>`
 
-`conda install -c conda-forge pdal==2.5.6 draco=1.5.6 python-pdal gdal untwine geopandas python-wget pathlib2`
+`conda install -c conda-forge pdal==2.5.6 draco=1.5.6 python-pdal gdal untwine geopandas python-wget pathlib2 tqdm`
 
 We encourage the use of `mamba` since this library as is faster than conda. 
 If you want to use `mamba`, run the following lines:
 
 `conda activate <your-env-name>`
 
-`mamba install -c conda-forge pdal==2.5.6 draco=1.5.6 python-pdal gdal untwine geopandas python-wget pathlib2`
+`mamba install -c conda-forge pdal==2.5.6 draco=1.5.6 python-pdal gdal untwine geopandas python-wget pathlib2 tqdm`
 
 ### Install packages on a new python environment
 
