@@ -1,0 +1,15 @@
+name: pdal_env
+channels:
+  - conda-forge
+dependencies:
+  - python==3.10
+  - pdal==2.5.6
+  - draco=1.5.6
+  - python-pdal
+  - gdal
+  - untwine
+  - geopandas
+  - python-wget
+  - pathlib2
+  - tqdm
+  - ipykernel
