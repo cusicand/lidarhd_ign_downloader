@@ -1,4 +1,8 @@
 # IGN LiDAR HD downloader
+
+
+[![DOI](https://zenodo.org/badge/706232299.svg)](https://zenodo.org/doi/10.5281/zenodo.10697626)
+
 Python CLI script to download and resample LiDAR HD classified point clouds from IGN-France.
 
 To have some news about data processing, please visit [IGN-France website](https://geoservices.ign.fr/lidarhd).
@@ -109,6 +113,10 @@ Below is an example using the supplied shapefile:
 
 **NOTE:** The script will iterate through all the features (polygons) within the shapefile crating a folder for each specific AOI. For that, you need to specify a column with the `aoi_name`.
 
-## Contact
+## Contact and citation
 
 For any question/bug/issue, please report it on issues section or contact [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr)
+
+Please cite this tool using the following DOI
+
+[![DOI](https://zenodo.org/badge/706232299.svg)](https://zenodo.org/doi/10.5281/zenodo.10697626)
