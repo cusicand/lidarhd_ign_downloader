@@ -34,7 +34,7 @@ def pdal_json_pipeline(input_laz_fn, out_tif_fn, out_type="mean", tr=1):
         ]
     }
     return pdal_json_pipeline
-#END def
+
 
 def get_lidar_tiles(tiles_df: gpd.GeoDataFrame,
                    aoi_feature: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
@@ -50,7 +50,7 @@ def get_lidar_tiles(tiles_df: gpd.GeoDataFrame,
     # Spatial request to select the intersection between two shapefiles
     intersection = tiles_df[tiles_df.intersects(aoi_feature.geometry.values[0])]
     return intersection
-#END def
+
 
 def download_data(selected_tiles: gpd.GeoDataFrame,
                   out_dir: Path) -> None:
@@ -68,9 +68,8 @@ def download_data(selected_tiles: gpd.GeoDataFrame,
     else:
         print(f"Downloading {selected_tiles['nom_pkk'].values[0]}\n-----")
         wget.download(url=selected_tiles['url_telech'].values[0], out=str(out_dir))
-    # END if
-# ENd def
-#%%
+
+
 def getparser():
     args_desc = """
     --------------------------------------------------
@@ -95,8 +94,8 @@ def getparser():
     parser.add_argument("-dtype", "--file_data_type", type=str, default='gtiff', choices=['gtiff', 'vrt'],
         help="Outout data format between GeoTIff and Virtual Dataset (VRT). Default value : GTiff")    
     return parser
-#END def
-#%%
+
+
 def main():
     # Get arguments
     parser = getparser()
@@ -109,26 +108,26 @@ def main():
         workdir = Path(args.out_data_path)
         if not workdir.exists():
             workdir.mkdir()
-        #END if
+
         print(f"Data will be stored in {workdir}/raw_laz_data\n-----")
-    #END if
+
     print(f"Working on: {workdir}")
     extraction_path = workdir.joinpath("raw_laz_data")
     if not extraction_path.exists():
         # Creating directory if not exist
         extraction_path.mkdir()
-    #END if
+
     tiles_fn = workdir.joinpath("ign_resources", "TA_diff_pkk_lidarhd_classe.shp")
 
     if not workdir.joinpath("ign_resources").exists():
         workdir.joinpath("ign_resources").mkdir()
-    #END if
+
     if not tiles_fn.exists():
         wget.download(url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe", out=str(workdir.joinpath("ign_resources")))
         subprocess.run(f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}",
                        shell = True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         # os.system(f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}")
-    #END if
+
     # Reading shapefiles using GeoPandas. Can take several seconds
     tiles_df = gpd.read_file(tiles_fn)
     aoi_df = gpd.read_file(args.aoi)
@@ -142,7 +141,7 @@ def main():
         # Check if directory exist
         if not aoi_path.exists():
             aoi_path.mkdir()
-        #END if
+    
         print(f"{len(selection)} tiles found . . .\n-----")
         for g in range(len(selection)):
             download_data(selection.iloc[[g]], extraction_path)
@@ -157,7 +156,7 @@ def main():
             pdal_json_str = json.dumps(json_pipeline)
             pipeline = pdal.Pipeline(pdal_json_str).execute()
             list_tiff_files.append(str(dem_out_path))
-        #END for
+
         # Merging all raster files info single one.
         # TODO: solve problem with border when mosaic tiles.
         os.chdir(aoi_path)
@@ -167,18 +166,17 @@ def main():
             cmd = f"gdal_merge.py -of GTiff -ot Float32 \
                 -ps {args.dem_resolution} {args.dem_resolution} -n -9999 -a_nodata -9999 \
                 -o {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.tif {' '.join(list_tiff_files)}"
-            # print(cmd)
+
         if args.file_data_type == 'vrt':
             cmd = f"gdalbuildvrt -tr {args.dem_resolution} {args.dem_resolution} \
                 -r bilinear {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.vrt {' '.join(list_tiff_files)}"
-            # print(cmd)
+
         subprocess.run(cmd,shell = True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         # os.system(cmd)
     #END for
-# %%
+
 if __name__ == "__main__":
     start_time = time.time()
     main()
     elapsed_time = time.time() - start_time
     print(f"Elapsed time in %H:%M:%S: {time.strftime('%H:%M:%S', time.gmtime(elapsed_time))}")
-# %%

@@ -13,3 +13,4 @@ dependencies:
   - pathlib2
   - tqdm
   - ipykernel
+  - pyogrio
