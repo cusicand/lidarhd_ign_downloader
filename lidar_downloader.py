@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding=utf-8
-#%%
+# %%
 import os
 import time
 import argparse
@@ -13,31 +13,51 @@ import pdal
 from tqdm import tqdm
 
 import geopandas as gpd
-#%%
+
+
+# %%
 def pdal_json_pipeline(input_laz_fn, out_tif_fn, out_type="mean", tr=1):
     pdal_json_pipeline = {
-        "pipeline":
-        [
+        "pipeline": [
             # To do: check if this is a text or posix object
             input_laz_fn,
-        {
-            "type":"filters.range",
-            "limits":"Classification[1:2]"
-        },
-        {
-            "filename": out_tif_fn,
-            "gdaldriver":"GTiff",
-            "output_type":out_type,
-            "resolution":tr,
-            "type": "writers.gdal"
-        }
+            {"type": "filters.range", "limits": "Classification[1:2]"},
+            {
+                "filename": out_tif_fn,
+                "gdaldriver": "GTiff",
+                "output_type": out_type,
+                "resolution": tr,
+                "type": "writers.gdal",
+            },
         ]
     }
     return pdal_json_pipeline
-#END def
 
-def get_lidar_tiles(tiles_df: gpd.GeoDataFrame,
-                   aoi_feature: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+
+# END def
+
+
+def pdal_wrench_density(
+    input_laz_fn,
+    out_tif,
+    tr=1.0,
+):
+    cmd_pdal_wrench = []
+    cmd_pdal_wrench.extend(
+        [
+            "pdal_wrench",
+            "density",
+            f"--input={input_laz_fn}",
+            f"--resolution={tr}",
+            f"--output={out_tif}",
+        ]
+    )
+    return cmd_pdal_wrench
+
+
+def get_lidar_tiles(
+    tiles_df: gpd.GeoDataFrame, aoi_feature: gpd.GeoDataFrame
+) -> gpd.GeoDataFrame:
     """Spatial intersection of two polygons
 
     Args:
@@ -50,10 +70,12 @@ def get_lidar_tiles(tiles_df: gpd.GeoDataFrame,
     # Spatial request to select the intersection between two shapefiles
     intersection = tiles_df[tiles_df.intersects(aoi_feature.geometry.values[0])]
     return intersection
-#END def
 
-def download_data(selected_tiles: gpd.GeoDataFrame,
-                  out_dir: Path) -> None:
+
+# END def
+
+
+def download_data(selected_tiles: gpd.GeoDataFrame, out_dir: Path) -> None:
     """Download desired tiles.
     This function check first if data exist into indicated `out_laz_dir`.
     If yes, the function pass the downloading process. If not, will download.
@@ -62,15 +84,19 @@ def download_data(selected_tiles: gpd.GeoDataFrame,
         out_laz_dir (Path): Out directory path.S
     """
     # Check if file already exist
-    if out_dir.joinpath(selected_tiles['nom_pkk'].values[0]).exists():
-        print(f"File {out_dir.joinpath(selected_tiles['nom_pkk'].values[0])} already exist\n-----")
+    if out_dir.joinpath(selected_tiles["nom_pkk"].values[0]).exists():
+        print(
+            f"File {out_dir.joinpath(selected_tiles['nom_pkk'].values[0])} already exist\n-----"
+        )
         pass
     else:
         print(f"Downloading {selected_tiles['nom_pkk'].values[0]}\n-----")
-        wget.download(url=selected_tiles['url_telech'].values[0], out=str(out_dir))
+        wget.download(url=selected_tiles["url_telech"].values[0], out=str(out_dir))
     # END if
+
+
 # ENd def
-#%%
+# %%
 def getparser():
     args_desc = """
     --------------------------------------------------
@@ -81,22 +107,40 @@ def getparser():
 
     # Create an argument parser to get the CLI user arguments
     parser = argparse.ArgumentParser(
-        prog='lidarhd_downloader.py.py',
+        prog="lidarhd_downloader.py.py",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        description=args_desc)
+        description=args_desc,
+    )
     # MANDATORY - Inputs
-    parser.add_argument("aoi", type=str,
-        help="path to image aoi.shp file")
+    parser.add_argument("aoi", type=str, help="path to image aoi.shp file")
     # OPTIONNALS
-    parser.add_argument("-out_data", "--out_data_path", type=str, default=None,
-        help="Out data-path directory. If not specified, data will be stored in lidar_downloader.py base-path by default.")
-    parser.add_argument("-tr", "--dem_resolution", type=float, default=1.0,
-        help="resolution of output DEM. Default value : 1.0")
-    parser.add_argument("-dtype", "--file_data_type", type=str, default='gtiff', choices=['gtiff', 'vrt'],
-        help="Outout data format between GeoTIff and Virtual Dataset (VRT). Default value : GTiff")    
+    parser.add_argument(
+        "-out_data",
+        "--out_data_path",
+        type=str,
+        default=None,
+        help="Out data-path directory. If not specified, data will be stored in lidar_downloader.py base-path by default.",
+    )
+    parser.add_argument(
+        "-tr",
+        "--dem_resolution",
+        type=float,
+        default=1.0,
+        help="resolution of output DEM. Default value : 1.0",
+    )
+    parser.add_argument(
+        "-dtype",
+        "--file_data_type",
+        type=str,
+        default="gtiff",
+        choices=["gtiff", "vrt"],
+        help="Outout data format between GeoTIff and Virtual Dataset (VRT). Default value : GTiff",
+    )
     return parser
-#END def
-#%%
+
+
+# END def
+# %%
 def main():
     # Get arguments
     parser = getparser()
@@ -104,31 +148,41 @@ def main():
     if args.out_data_path == None:
         # workdir = Path.cwd()
         workdir = Path(__file__).parent
-        print(f"As not out_path have been specified, data will be stored in $Home/lidarhd_ign_downloader/raw_laz_data\n-----")
+        print(
+            f"As not out_path have been specified, data will be stored in $Home/lidarhd_ign_downloader/raw_laz_data\n-----"
+        )
     else:
         workdir = Path(args.out_data_path)
         if not workdir.exists():
             workdir.mkdir()
-        #END if
+        # END if
         print(f"Data will be stored in {workdir}/raw_laz_data\n-----")
-    #END if
+    # END if
     print(f"Working on: {workdir}")
     extraction_path = workdir.joinpath("raw_laz_data")
     if not extraction_path.exists():
         # Creating directory if not exist
         extraction_path.mkdir()
-    #END if
+    # END if
     tiles_fn = workdir.joinpath("ign_resources", "TA_diff_pkk_lidarhd_classe.shp")
 
     if not workdir.joinpath("ign_resources").exists():
         workdir.joinpath("ign_resources").mkdir()
-    #END if
+    # END if
     if not tiles_fn.exists():
-        wget.download(url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe", out=str(workdir.joinpath("ign_resources")))
-        subprocess.run(f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}",
-                       shell = True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        wget.download(
+            url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe",
+            out=str(workdir.joinpath("ign_resources")),
+        )
+        subprocess.run(
+            f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}",
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
         # os.system(f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}")
-    #END if
+    # END if
     # Reading shapefiles using GeoPandas. Can take several seconds
     tiles_df = gpd.read_file(tiles_fn)
     aoi_df = gpd.read_file(args.aoi)
@@ -137,48 +191,84 @@ def main():
         print(f"Iterating through {i+1}/{len(aoi_df)} features within shapefile\n-----")
         # Spatial request to select the intersection between two shapefiles
         selection = get_lidar_tiles(tiles_df, aoi_df.loc[[i]])
-        print(f"{len(selection)} tiles intersects '{aoi_df.loc[[i]].aoi_name.values[0]}'\n-----")
+        print(
+            f"{len(selection)} tiles intersects '{aoi_df.loc[[i]].aoi_name.values[0]}'\n-----"
+        )
         aoi_path = workdir.joinpath(aoi_df.loc[[i]].aoi_name.values[0])
         # Check if directory exist
         if not aoi_path.exists():
             aoi_path.mkdir()
-        #END if
+        # END if
         print(f"{len(selection)} tiles found . . .\n-----")
         for g in range(len(selection)):
             download_data(selection.iloc[[g]], extraction_path)
         # END for
         list_tiff_files = []
+        list_tiff_density_files = []
         for j in tqdm(range(len(selection))):
-            laz_path = extraction_path.joinpath(selection['nom_pkk'].values[j])
-            laz_fn = (laz_path.name).split('.')[0]
+            laz_path = extraction_path.joinpath(selection["nom_pkk"].values[j])
+            laz_fn = (laz_path.name).split(".")[0]
             dem_out_path = aoi_path.joinpath(f"{laz_fn}.tif")
+            dem_density_out_path = aoi_path.joinpath(f"{laz_fn}_PointDensity.tif")
             print(f"Converting '{laz_fn}' file into '{dem_out_path.name}'\n-----")
-            json_pipeline = pdal_json_pipeline(str(laz_path), str(dem_out_path), out_type="mean", tr=args.dem_resolution)
+            json_pipeline = pdal_json_pipeline(
+                str(laz_path),
+                str(dem_out_path),
+                out_type="mean",
+                tr=args.dem_resolution,
+            )
             pdal_json_str = json.dumps(json_pipeline)
             pipeline = pdal.Pipeline(pdal_json_str).execute()
+            subprocess.run(
+                " ".join(
+                    pdal_wrench_density(
+                        str(laz_path),
+                        out_tif=str(dem_density_out_path),
+                        tr=args.dem_resolution,
+                    )
+                ),
+                shell=True,
+            )
             list_tiff_files.append(str(dem_out_path))
-        #END for
+            list_tiff_density_files.append(str(dem_density_out_path))
+        # END for
         # Merging all raster files info single one.
         # TODO: solve problem with border when mosaic tiles.
         os.chdir(aoi_path)
         # Merge all tiles by a given resolution
 
-        if args.file_data_type == 'gtiff':
+        if args.file_data_type == "gtiff":
             cmd = f"gdal_merge.py -of GTiff -ot Float32 \
                 -ps {args.dem_resolution} {args.dem_resolution} -n -9999 -a_nodata -9999 \
                 -o {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.tif {' '.join(list_tiff_files)}"
             # print(cmd)
-        if args.file_data_type == 'vrt':
+        if args.file_data_type == "vrt":
             cmd = f"gdalbuildvrt -tr {args.dem_resolution} {args.dem_resolution} \
                 -r bilinear {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.vrt {' '.join(list_tiff_files)}"
             # print(cmd)
-        subprocess.run(cmd,shell = True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        subprocess.run(
+            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+        )
+        cmd_merge_pointdensity = f"gdal_merge.py -of GTiff -ot Float32 -a_nodata -9999 \
+                            -ps {args.dem_resolution} {args.dem_resolution} -n -9999 -a_nodata -9999 \
+                            -o {aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged_PointDensity.tif {' '.join(list_tiff_density_files)}"
+        subprocess.run(
+            cmd_merge_pointdensity,
+            shell=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
         # os.system(cmd)
-    #END for
+    # END for
+
+
 # %%
 if __name__ == "__main__":
     start_time = time.time()
     main()
     elapsed_time = time.time() - start_time
-    print(f"Elapsed time in %H:%M:%S: {time.strftime('%H:%M:%S', time.gmtime(elapsed_time))}")
+    print(
+        f"Elapsed time in %H:%M:%S: {time.strftime('%H:%M:%S', time.gmtime(elapsed_time))}"
+    )
 # %%
