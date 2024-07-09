@@ -179,7 +179,7 @@ args = parser.parse_args(args_list)
 lidar_downloader.main(args)
 ```
 
-> [!NOTE]IMPORTANT NOTE
+> [!NOTE] IMPORTANT NOTE
 > Whatever the case, the script will iterate through all the features (polygons) within the shapefile or geopackage file. It will create a folder for each specific AOI based on the column with the `aoi_name`. If you used your own shapefile, make sure to have one column called `aoi_name`. Otherwise, you can edit the provided file.
 
 # Contact and citation
