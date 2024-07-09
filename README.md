@@ -186,7 +186,6 @@ Whatever the case, the script will iterate through all the features (polygons) w
 :::
 
 # Contact and citation
-
 For any question/bug/issue, please report it on issues section or contact [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr)
 
 > [!IMPORTANT]   

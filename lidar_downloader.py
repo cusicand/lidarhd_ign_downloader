@@ -196,14 +196,15 @@ def main(args: argparse.Namespace = None):
         # END if
         print_infoBM(f"Data will be stored in {workdir}/raw_laz_data")
     # END if
-
+        print_infoBM(f"Data will be stored in {workdir}/raw_laz_data\n-----")
+    # END if
     print_infoBM(f"Working on: {workdir}")
+
     extraction_path = workdir.joinpath("raw_laz_data")
     if not extraction_path.exists():
         # Creating directory if not exist
         extraction_path.mkdir()
     # END if
-    # Downloading IGN database if not exist
     tiles_fn = workdir.joinpath("ign_resources", "TA_diff_pkk_lidarhd_classe.shp")
 
     if not workdir.joinpath("ign_resources").exists():
@@ -397,6 +398,7 @@ def main(args: argparse.Namespace = None):
             # END for
         # END if
     # END for
+
 # %%
 if __name__ == "__main__":
     start_time = time.time()
