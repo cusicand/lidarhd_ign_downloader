@@ -1,10 +1,26 @@
 #!/usr/bin/env python
 # coding=utf-8
+
+# ---------------------------------------------------------------------- #
+# GeoMultiCorr (GMC) project
+# lidar_downloader_jupyter.ipynb
+# creation date: 2024-07-09.
+#
+# Author(s) metadata
+# -> author: Diego CUSICANQUI 1 & Jean Baptiste BARRE 2
+# -> affiliation 1: CNES | ISTerre | Univ. Grenoble Alpes
+# -> affiliation 2: IGE | Univ. Grenoble Alpes
+# -> email(s): diego.cusicanqui@univ-grenoble-alpes.fr | diego.cusicanqui.vg@gmail.com
+# ->           jb.barre@gmail.com
+#
+#  Copyright (C) Diego Cusicanqui, 2024 | All rights reserved.
+# ---------------------------------------------------------------------- #
 # %%
 import os
 import time
 import argparse
 import subprocess
+import shutil
 
 from pathlib import Path
 import wget
@@ -168,12 +184,10 @@ def download_data(selected_tiles: gpd.GeoDataFrame, out_dir: str | Path) -> None
     """
     # Check if file already exist
     if out_dir.joinpath(selected_tiles["nom_pkk"].values[0]).exists():
-        print(
-            f"File {out_dir.joinpath(selected_tiles['nom_pkk'].values[0])} already exist\n-----"
-        )
+        print_infoBM(f"File {out_dir.joinpath(selected_tiles['nom_pkk'].values[0])} already exist")
         pass
     else:
-        print(f"Downloading {selected_tiles['nom_pkk'].values[0]}\n-----")
+        print_infoBM(f"Downloading {selected_tiles['nom_pkk'].values[0]}\n-----")
         wget.download(url=selected_tiles["url_telech"].values[0], out=str(out_dir))
     # END if
 # ENd def
@@ -196,7 +210,7 @@ def main(args: argparse.Namespace = None):
         # END if
         print_infoBM(f"Data will be stored in {workdir}/raw_laz_data")
     # END if
-        print_infoBM(f"Data will be stored in {workdir}/raw_laz_data\n-----")
+        print_infoBM(f"Data will be stored in {workdir}/raw_laz_data")
     # END if
     print_infoBM(f"Working on: {workdir}")
 
@@ -212,7 +226,7 @@ def main(args: argparse.Namespace = None):
     # END if
 
     if not tiles_fn.exists():
-        priont_infoBM("Downloading IGN database . . .")
+        print_infoBM("Downloading IGN database . . .")
         wget.download(
             url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe",
             out=str(workdir.joinpath("ign_resources")))
@@ -398,11 +412,10 @@ def main(args: argparse.Namespace = None):
             # END for
         # END if
     # END for
-
 # %%
 if __name__ == "__main__":
     start_time = time.time()
     main()
     elapsed_time = time.time() - start_time
     print(f"Elapsed time in %H:%M:%S: {time.strftime('%H:%M:%S', time.gmtime(elapsed_time))}")
-# %%
+#END if

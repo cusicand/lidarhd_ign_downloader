@@ -106,9 +106,8 @@ export LIDAR_PATH=$HOME/lidarhd_ign_downloader
 export PATH=$LIDAR_PATH:$PATH            
 export PYTHONPATH=$LIDAR_PATH:$PYTHONPATH
 ```
-:::{note}Note
-If your installation directory is different than `$HOME`, Replace `$HOME` by the full directory path. 
-:::
+> [!NOTE]   
+> If your installation directory is different than `$HOME`, Replace `$HOME` by the full directory path.
 
 Once changes saved, run `chmod +x lidar_downloader.py` into github repository to ensure the execution of the script.
 
@@ -125,9 +124,8 @@ Once `pdal_wrench` installed, it is better you can run it from everywhere in the
 export PDWRENCH=$HOME/wrench/build/
 export PATH=$PDWRENCH:$PATH
 ```
-:::{note}Note
-If your installation directory is different than `$HOME`, Replace `$HOME` by the full directory path. 
-:::
+> [!NOTE]
+> If your installation directory is different than `$HOME`, Replace `$HOME` by the full directory path. 
 
 ## HOW TO USE
 
@@ -181,9 +179,8 @@ args = parser.parse_args(args_list)
 lidar_downloader.main(args)
 ```
 
-:::{note}Important note
-Whatever the case, the script will iterate through all the features (polygons) within the shapefile or geopackage file. It will create a folder for each specific AOI based on the column with the `aoi_name`. If you used your own shapefile, make sure to have one column called `aoi_name`. Otherwise, you can edit the provided file.
-:::
+> [!NOTE]IMPORTANT NOTE
+> Whatever the case, the script will iterate through all the features (polygons) within the shapefile or geopackage file. It will create a folder for each specific AOI based on the column with the `aoi_name`. If you used your own shapefile, make sure to have one column called `aoi_name`. Otherwise, you can edit the provided file.
 
 # Contact and citation
 For any question/bug/issue, please report it on issues section or contact [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr)
