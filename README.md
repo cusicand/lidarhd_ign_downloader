@@ -3,6 +3,7 @@
 [![DOI](https://zenodo.org/badge/706232299.svg)](https://zenodo.org/doi/10.5281/zenodo.10697626)
 
 **author**: Diego Cusicanqui
+**contributors**: Jean Baptiste Barré
 
 **contact**: [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr)
 
