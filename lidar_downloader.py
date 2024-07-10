@@ -200,16 +200,14 @@ def main(args: argparse.Namespace = None):
         args = parser.parse_args()
     # END if
     if args.out_data_path == None:
-        # workdir = Path.cwd()
-        workdir = Path(__file__).parent
+        # Default workdir to script's parent directory if out_data_path is not specified
+        workdir = Path(__file__).resolve().parent
         print_infoBM(f"As not out_path have been specified, data will be stored by default in $HOME/lidarhd_ign_downloader/raw_laz_data")
     else:
-        workdir = Path(args.out_data_path)
+        workdir = Path(args.out_data_path).resolve()
         if not workdir.exists():
-            workdir.mkdir()
+            workdir.mkdir(parents=True)
         # END if
-        print_infoBM(f"Data will be stored in {workdir}/raw_laz_data")
-    # END if
         print_infoBM(f"Data will be stored in {workdir}/raw_laz_data")
     # END if
     print_infoBM(f"Working on: {workdir}")
@@ -217,7 +215,7 @@ def main(args: argparse.Namespace = None):
     extraction_path = workdir.joinpath("raw_laz_data")
     if not extraction_path.exists():
         # Creating directory if not exist
-        extraction_path.mkdir()
+        extraction_path.mkdir(parents=True)
     # END if
     tiles_fn = workdir.joinpath("ign_resources", "TA_diff_pkk_lidarhd_classe.shp")
 
