@@ -17,6 +17,7 @@
 # ---------------------------------------------------------------------- #
 # %%
 import os
+import sys
 import time
 import argparse
 import subprocess
@@ -33,10 +34,6 @@ import geopandas as gpd
 import psutil
 import concurrent.futures
 from distutils.spawn import find_executable
-
-# percentage of the CPU workload to be used for processing. 
-# Warning: keep some CPUs for the OS and other processes(at least 4 CPUs).
-CPU_WORKLOAD = 0.6
 # %%
 def getparser():
     args_desc = """
@@ -63,18 +60,26 @@ def getparser():
                         help="Compute elevation statistics. Default value : mean")
     parser.add_argument("-dtype", "--file_data_type", type=str, default="gtiff",
                         choices=["gtif", "vrt"],
-                        help="Outout data format between GeoTIff and Virtual Dataset (VRT). Default value : gTif")
+                        help="Outout data format between GeoTIff and Virtual Dataset (VRT). Default value : gtif")
     parser.add_argument("-force_database", "--force_redownload_database", action="store_true",
                         help="Force re-download of IGN database. Default value: False")
     parser.add_argument("-rm_tiles", "--remove_tiles", action="store_true",
                         help="Remove individual downloaded tiles after processing. Default value: True")
     parser.add_argument("-pdensity", "--point_density_map", action="store_true",
-                        help="Generates point density map for given resolution. Requires pdal_wrench installed. Default value: True")
+                        help="Generates point density map for given resolution. Requires pdal_wrench installed. Default value: False")
+    parser.add_argument("-cpu_w", "--cpu_workload", type=float, default=0.6,
+                        help="Multi-threaded process ratio. Default value: 0.6. Max value = 1.0.")
     return parser
 # END def
 
 def print_infoBM(text: str,
                 bold: bool = False) -> None:
+    """Prints a formatted message in the console.
+
+    Args:
+        text (str): string to be printed.
+        bold (bool, optional): print the text using bold style. Defaults to False.
+    """
     GMC_TEXT = "[ GMC-info ] :"
     if bold:
         print(f"\033[1m{GMC_TEXT} {text}\033[1m")
@@ -82,22 +87,51 @@ def print_infoBM(text: str,
         print(f"{GMC_TEXT} {text}")
 #END def
 
-def pdalwrench_bin(bin, args, **kw) -> bool:
+def pdalwrench_bin(bin_name: str) -> bool:
     """Search for PDAL wrench binaries.
+
+    Args:
+        bin_name (str): name of binaries to search for.
+
+    Returns:
+        bool: boolean value if binaries are found.
     """
-    bin_path = find_executable(bin)
+    bin_path = find_executable(bin_name)
     if bin_path is None:
-        msg = (f"Unable to find executable {bin_path}\n" 
-        f"Install PDAL_WRENCH and ensure it is in your PATH env variable\n" 
-        "https://github.com/PDAL/wrench" % bin)
-        print(msg)
+        msg = (f"Unable to find executable {bin_name}\n" 
+               f"Install PDAL_WRENCH and ensure it is in your PATH env variable\n" 
+               "https://github.com/PDAL/wrench")
+        sys.exit(msg)
+    
+    call = [bin_path]
+    print(' '.join(call))
+    
     try:
-        subprocess.run("pdal_wrench", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        return True
-    except FileNotFoundError:
+        result = subprocess.run(call, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            return True
+        else:
+            # print(f"Error: {result.stderr}")
+            return False
+    except Exception as e:
+        print(f"Exception occurred while checking {bin_name}: {e}")
         return False
 # %%
-def pdal_json_pipeline(input_laz_fn, out_tif_fn, compute_elev="mean", tr=1.0) -> dict:
+def pdal_json_pipeline(input_laz_fn: str | Path,
+                       out_tif_fn: str | Path,
+                       compute_elev: str = "mean",
+                       tr: float = 1.0) -> dict:
+    """Generates a PDAL JSON pipeline for processing LiDAR data.
+
+    Args:
+        input_laz_fn (str | Path): input laz filename path.
+        out_tif_fn (str | Path): Output tif filename path.
+        compute_elev (str, optional): parameter for computer elevation. Defaults to "mean". choices are "mean", "min", "max", "median".
+        tr (float, optional): resolution of output tif file. Defaults to 1.0.
+
+    Returns:
+        dict: PDAL JSON pipeline dictionary.
+    """
     pdal_json_pipeline = {
         "pipeline": [
             # To do: check if this is a text or posix object
@@ -119,6 +153,14 @@ def process_tile(laz_path: str | Path,
                 output_path: str | Path,
                 compute_elev: str = "mean",
                 resolution: int | float = 1.0) -> None:
+    """Process LiDAR tile using PDAL.
+
+    Args:
+        laz_path (str | Path): input laz filename path.
+        output_path (str | Path): output tif filename path.
+        compute_elev (str, optional): parameter for computer elevation. Defaults to "mean". choices are "mean", "min", "max", "median".
+        resolution (int | float, optional): resolution of output tif file. Defaults to 1.0.
+    """
     # This wraps the PDAL processing
     json_pipeline = pdal_json_pipeline(str(laz_path), str(output_path), compute_elev=compute_elev, tr=resolution)
     pdal_json_str = json.dumps(json_pipeline)
@@ -129,6 +171,16 @@ def process_tile(laz_path: str | Path,
 def pdal_wrench_density(input_laz_fn: str | Path,
                         out_tif: str | Path,
                         tr: int | float = 1.0) -> list[str]:
+    """Compute point density using PDAL Wrench.
+
+    Args:
+        input_laz_fn (str | Path): input laz filename path.
+        out_tif (str | Path): output tif filename path.
+        tr (int | float, optional): resolution of output tif file. Defaults to 1.0.
+
+    Returns:
+        list[str]: pdal_wrench command list.
+    """
     cmd_pdal_wrench = []
     cmd_pdal_wrench.extend(
         [
@@ -144,6 +196,12 @@ def pdal_wrench_density(input_laz_fn: str | Path,
 
 def download_file(url: str,
                 output_path: str | Path) -> None:
+    """Download file from a given URL.
+
+    Args:
+        url (str): URL of the file to download.
+        output_path (str | Path): Output path to store the downloaded file.
+    """
     response = requests.get(url, timeout=10)
     if "content-disposition" in response.headers:
         content_disposition = response.headers["content-disposition"]
@@ -157,9 +215,8 @@ def download_file(url: str,
     else:
         print_infoBM(f"{filename} already exists.")
 
-def get_lidar_tiles(
-    tiles_df: gpd.GeoDataFrame, aoi_feature: gpd.GeoDataFrame
-) -> gpd.GeoDataFrame:
+def get_lidar_tiles(tiles_df: gpd.GeoDataFrame,
+                    aoi_feature: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     """Spatial intersection of two polygons
 
     Args:
@@ -176,11 +233,13 @@ def get_lidar_tiles(
 
 def download_data(selected_tiles: gpd.GeoDataFrame, out_dir: str | Path) -> None:
     """Download desired tiles.
+
     This function check first if data exist into indicated `out_laz_dir`.
     If yes, the function pass the downloading process. If not, will download.
+
     Args:
         selected_tiles (gpd.GeoDataFrame): Desired ign tiles.
-        out_laz_dir (Path): Out directory path.S
+        out_laz_dir (str | Path): Out directory path.
     """
     # Check if file already exist
     if out_dir.joinpath(selected_tiles["nom_pkk"].values[0]).exists():
@@ -192,6 +251,37 @@ def download_data(selected_tiles: gpd.GeoDataFrame, out_dir: str | Path) -> None
     # END if
 # ENd def
 
+def download_LiDAR_tiles_database(out_dir: str | Path) -> None:
+    """Download IGN LiDAR database.
+
+    This function will download IGN LiDAR database if not exist.
+
+    Args:
+        out_dir (str | Path): Out directory path.
+    """
+    # First try: Downloading IGN database from official website
+    print_infoBM("Checking IGN database from official website . . .")
+    try:
+        primary_url = "https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe"
+        wget.download(
+            url=primary_url,
+            out=str(out_dir)
+        )
+    except Exception as e:
+        print_infoBM(f"Primary download failed with error: {e}")
+        print_infoBM("Switching to alternative download link on Zenodo . . .")
+        try:
+            alternative_url = "https://zenodo.org/records/13793544/files/grille.zip"
+            wget.download(
+                url=alternative_url,
+                out=str(out_dir)
+            )
+        except Exception as e:
+            print_infoBM(f"Alternative download failed with error: {e}")
+            print_infoBM("Both download attempts failed. Please check your internet connection or the availability of the URLs.")
+            exit(1)
+    # END try
+# END def
 # %%
 def main(args: argparse.Namespace = None):
     if args is None:
@@ -199,6 +289,9 @@ def main(args: argparse.Namespace = None):
         parser = getparser()
         args = parser.parse_args()
     # END if
+    # percentage of the CPU workload to be used for processing. 
+    # Warning: keep some CPUs for the OS and other processes(at least 4 CPUs).
+    CPU_WORKLOAD = args.cpu_workload
     if args.out_data_path == None:
         # Default workdir to script's parent directory if out_data_path is not specified
         workdir = Path(__file__).resolve().parent
@@ -210,27 +303,27 @@ def main(args: argparse.Namespace = None):
         # END if
         print_infoBM(f"Data will be stored in {workdir}/raw_laz_data")
     # END if
-    print_infoBM(f"Working on: {workdir}")
-
-    extraction_path = workdir.joinpath("raw_laz_data")
-    if not extraction_path.exists():
-        # Creating directory if not exist
-        extraction_path.mkdir(parents=True)
+    # First, we need to download the LiDAR-HD IGN database
+    print_infoBM("Stage 1 -> Downloading IGN database . . .")
+    lidar_database_path = Path(__file__).resolve().parent
+    # Check if ign_resources directory exist
+    print(lidar_database_path)
+    if not lidar_database_path.joinpath("ign_resources").exists():
+        lidar_database_path.joinpath("ign_resources").mkdir()
     # END if
-    tiles_fn = workdir.joinpath("ign_resources", "TA_diff_pkk_lidarhd_classe.shp")
-
-    if not workdir.joinpath("ign_resources").exists():
-        workdir.joinpath("ign_resources").mkdir()
-    # END if
-
+    tiles_fn = lidar_database_path.joinpath("ign_resources", "TA_diff_pkk_lidarhd_classe.shp")
     if not tiles_fn.exists():
-        print_infoBM("Downloading IGN database . . .")
-        wget.download(
-            url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe",
-            out=str(workdir.joinpath("ign_resources")))
-        subprocess.run(
-            f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}",
-            shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        download_LiDAR_tiles_database(lidar_database_path.joinpath("ign_resources"))
+        # Unzipping downloaded file
+        print_infoBM("Unzipping downloaded file . . .")
+        zip_database_fn = lidar_database_path.joinpath("ign_resources", "grille.zip")
+        result = subprocess.run(f"unzip {str(zip_database_fn)} -d {str(zip_database_fn.parent)}", shell=True,
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode == 0:
+            print_infoBM("Unzipping completed successfully.")
+        else:
+            print_infoBM(f"Unzipping failed with error: {result.stderr}")
+    # END if
     if tiles_fn.exists() & args.force_redownload_database:
         print_infoBM("Forcing to re-download IGN database.")
         ign_ressources_path = workdir.joinpath("ign_resources")
@@ -242,16 +335,19 @@ def main(args: argparse.Namespace = None):
                 item.unlink()  # Removes files
             #END if
         #END for
-        wget.download(
-            url="https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe",
-            out=str(workdir.joinpath("ign_resources")))
-        subprocess.run(
-            f"unzip {str(workdir.joinpath('ign_resources', 'grille.zip'))} -d {str(workdir.joinpath('ign_resources'))}",
-            shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        download_LiDAR_tiles_database(lidar_database_path.joinpath("ign_resources"))
+    # END if
+
+    print_infoBM(f"Stage 2 -> Working on '{workdir}' directory.")
+
+    extraction_path = workdir.joinpath("raw_laz_data")
+    if not extraction_path.exists():
+        # Creating directory if not exist
+        extraction_path.mkdir(parents=True)
     # END if
 
     # Reading shapefiles using GeoPandas. Can take several seconds
-    print_infoBM("Reading lidarHD database . . .")
+    print_infoBM(f"Reading LiDAR-HD database on {lidar_database_path} . . .")
     tiles_df = gpd.read_file(tiles_fn, engine="pyogrio")
     print_infoBM("Reading AOI file . . .")
     aoi_df = gpd.read_file(args.aoi_file, engine="pyogrio")
@@ -267,7 +363,6 @@ def main(args: argparse.Namespace = None):
         if not aoi_path.exists():
             aoi_path.mkdir()
         # END if
-
         #  Multi-threaded downloading process:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             try:
@@ -282,31 +377,23 @@ def main(args: argparse.Namespace = None):
                 print_infoBM("%r generated an exception: " % exc)
 
         # Multi-processing PDAL processing
-        cpu_count = psutil.cpu_count()
+        cpu_count = len(psutil.Process().cpu_affinity()) # https://stackoverflow.com/questions/57260410/python-psutil-cpu-count-returns-wrong-number-of-cpus
         max_workers = int(cpu_count * CPU_WORKLOAD)
         
+        print_infoBM(f"Stage 3 -> Converting *.laz tiles to *.tif DEMs.")
+        # Processing LiDAR tiles using multi-threading strategy
         list_tiff_files_merge = []
-        list_tiff_density_files_merge = []
         with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
             laz_tif_elevation_jobs = []
-            laz_tif_density_jobs = []
             for j in tqdm(range(len(selection))):
                 laz_path = extraction_path.joinpath(selection["nom_pkk"].values[j])
                 laz_fn = (laz_path.name).split(".")[0]
                 dem_out_path = aoi_path.joinpath(f"{laz_fn}.tif")
-                dem_density_out_path = aoi_path.joinpath(f"{laz_fn}_PointDensity.tif")
                 list_tiff_files_merge.append(str(dem_out_path))
-                list_tiff_density_files_merge.append(str(dem_density_out_path))
                 print_infoBM(f"Converting '{laz_path.name}' file into '{dem_out_path.name}'")
-
                 job = executor.submit(
                     process_tile, laz_path, dem_out_path, args.compute_elevation, args.dem_resolution)
                 laz_tif_elevation_jobs.append(job)
-                if args.point_density_map:
-                    print_infoBM(f"Computing point density for '{laz_path.name}' file into '{dem_density_out_path.name}'")
-                    job_density = executor.submit(
-                        pdal_wrench_density, str(laz_path), str(dem_density_out_path), args.dem_resolution)
-                    laz_tif_density_jobs.append(job_density)
             # END for
             
             for job_a in concurrent.futures.as_completed(laz_tif_elevation_jobs):
@@ -316,7 +403,24 @@ def main(args: argparse.Namespace = None):
                     print_infoBM(f"Processing generated an exception: {exc}")
                 #END try
             # END for
-            if args.point_density_map:    
+        #END with
+        # Processing LiDAR point density tiles using multi-threading strategy
+        if args.point_density_map:
+            print_infoBM("Stage 4 -> Computing LiDAR point density . . .")
+            # if pdalwrench_bin("pdal_wrench") is True:
+            list_tiff_density_files_merge = []
+            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+                laz_tif_density_jobs = []
+                for j in tqdm(range(len(selection))):
+                    laz_path = extraction_path.joinpath(selection["nom_pkk"].values[j])
+                    laz_fn = (laz_path.name).split(".")[0]
+                    dem_density_out_path = aoi_path.joinpath(f"{laz_fn}_PointDensity.tif")
+                    list_tiff_density_files_merge.append(str(dem_density_out_path))
+                    print_infoBM(f"Computing point density for '{laz_path.name}' file into '{dem_density_out_path.name}'")
+                    job_density = executor.submit(
+                        pdal_wrench_density, str(laz_path), str(dem_density_out_path), args.dem_resolution)
+                    laz_tif_density_jobs.append(job_density)
+                # END for
                 for job_b in concurrent.futures.as_completed(laz_tif_density_jobs):
                     try:
                         job_b.result()  # Check for processing completion or errors
@@ -324,11 +428,12 @@ def main(args: argparse.Namespace = None):
                         print_infoBM(f"Processing generated an exception: {exc}")
                     #END try
                 # END for
-        # TODO: solve problem with border when mosaic tiles.
+            #END with
+        #END if
         os.chdir(aoi_path)
         # Merge all tiles by a given resolution
         cmd = []
-        merge_out_path = aoi_path.joinpath(f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res{args.dem_resolution}_CompElev{args.compute_elevation}_merged.tif")
+        merge_out_path = aoi_path.joinpath(f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged.tif")
         if args.file_data_type == "gtif":
             cmd.extend(
                 [
@@ -360,14 +465,12 @@ def main(args: argparse.Namespace = None):
                 ]
             )
         #END if
-        print_infoBM(f"Merging DEM tiles into '{merge_out_path.name}'.")
-        subprocess.run(
-            ' '.join(cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-        )
+        print_infoBM(f"Stage 5 -> Merging DEM tiles into '{merge_out_path.name}'.")
+        subprocess.run(' '.join(cmd), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         # Merge all density tiles by a given resolution
         if args.point_density_map:
             cmd_merge_pointdensity = []
-            merge_pointdensity_out_path = aoi_path.joinpath(f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res{args.dem_resolution}_CompElev{args.compute_elevation}_merged_PointDensity.tif")
+            merge_pointdensity_out_path = aoi_path.joinpath(f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged_PointDensity.tif")
             cmd_merge_pointdensity.extend(
                 [
                     "gdal_merge.py",
@@ -384,14 +487,12 @@ def main(args: argparse.Namespace = None):
                     f"{' '.join(list_tiff_density_files_merge)}"
                 ]
             )
-            print_infoBM(f"Merging LiDAR point density tiles into '{merge_pointdensity_out_path.name}'.")
-            subprocess.run(
-                ' '.join(cmd_merge_pointdensity),
-                shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-            )
+            print_infoBM(f"Stage 6 -> Merging LiDAR point density tiles into '{merge_pointdensity_out_path.name}'.")
+            subprocess.run(' '.join(cmd_merge_pointdensity),
+                shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         # Remove individual tiles
         if args.remove_tiles:
-            print_infoBM("Removing individual DEM tiles.")
+            print_infoBM("Stage 6 -> Removing individual DEM tiles.")
             for dem_tile in list_tiff_files_merge:
                 try:
                     os.remove(dem_tile)
@@ -407,7 +508,9 @@ def main(args: argparse.Namespace = None):
                     except FileNotFoundError:
                         raise ValueError(f"File {density_tile} not found. Cannot remove.")
                         pass
-            # END for
+                    #END try
+                #END for
+            # END if
         # END if
     # END for
 # %%

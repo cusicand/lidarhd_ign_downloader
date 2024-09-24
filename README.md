@@ -2,8 +2,9 @@
 
 [![DOI](https://zenodo.org/badge/706232299.svg)](https://zenodo.org/doi/10.5281/zenodo.10697626)
 
-**author**: Diego Cusicanqui
-**contributors**: Jean Baptiste Barré
+**Author**: Diego Cusicanqui
+
+**Contributors**: Jean Baptiste Barré
 
 **contact**: [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr)
 
@@ -11,6 +12,15 @@ Python scripts to quick download and resample LiDAR HD classified point clouds f
 This python script can be executed on command line interface (CLI) as well as within a Jupyter Notebook. Look at the [How to use section](#how-to-use) for more details.
 
 Refer to [IGN-France website](https://geoservices.ign.fr/lidarhd) for news about data processing.
+
+## Contents
+
+1. [Required packages](#required-packages)
+2. [Clone repository](#clone-github-repository)
+3. [Installation](#installation)
+4. [Pdal_wrench installation (optional but very useful)](#pdal_wrench-installation-optional)
+5. [How to use](#how-to-use)
+6. [Contact and citation](#contact-and-citation)
 
 ## Required packages
 - python (conda) environment
@@ -114,10 +124,13 @@ Once changes saved, run `chmod +x lidar_downloader.py` into github repository to
 
 Use `source ~/.bashrc` to reload changes.
 
-## PDAL_WRENCH installation (optional)
+## PDAL_WRENCH installation (optional but very useful)
 
 After version 2.0 of `lidar_downloader` we introduce the possibility to generate point density map to quantitatively estimate the number of points at a given resolution. This tasks is based on `pdal_wrench` and requires individual installation. A detailed description could be found [wrench GitHub](https://github.com/PDAL/wrench). Further investigation are ongoing to better integrate pdal_wrench within `lidar_downloader`.
 
+> [!NOTE]
+> `Pdal_wrench density` tool has been tested in high mountain environments where vegetation is not an issue. Future test should be conducted in environments with denser vegetation.
+> 
 ### Make pdal_wrench scripts executables
 
 Once `pdal_wrench` installed, it is better you can run it from everywhere in the computer. To do so, add the following lines to your `.bashrc`.
@@ -143,15 +156,17 @@ Then, we can switch between several parameters like:
 - `-dtype` or `--file_data_type` to switch between `GTiff` and `VRT` files.
 - `-force_database` or  `--force_redownload_database` to force re-download of IGN database. Default value: False.
 - `-rm_tiles` or `--remove_tiles` to remove individual downloaded tiles after processing. Default value: True.
-- `-pdensity` or `--point_density_map` to generates point density map for given resolution. **Requires pdal_wrench installed**. Default value: True. Refer to []()
+- `-pdensity` or `--point_density_map` to generates point density map for given resolution. **Requires pdal_wrench installed**. Default value: True. Refer to [PDAL_WRENCH installation (optional)](#pdal_wrench-installation-optional).
+- `-cpu_w` or `--cpu_workload` ratio allow to process the data using a multi-thread strategy. This value represents the percentage of CPU used for processing. **Warning:** Its recommended to keep some CPUs for the OS and other processes (at least 4 CPUs). Default value: 0.6. Max value = 1.0.
 
+#### Recommended use
 Below is an example using the supplied shapefile:
 ```bash
-lidarhd_downloader.py aoi_example.gpkg -out_data /home/user/some/path/directory/ -tr 1 -compute_elev mean -dtype gtif
+lidarhd_downloader.py aoi_example.gpkg -out_data /home/user/some/path/directory/ -tr 1 -compute_elev mean -dtype gtif -rm_tiles -pdensity -cpu_w 0.6
 ```
 or 
 ```bash
-lidarhd_downloader.py aoi_double.shp --out_data_path /home/user/some/path/directory/ --dem_resolution 1 --compute_elevation mean --file_data_type gtif
+lidarhd_downloader.py aoi_double.shp --out_data_path /home/user/some/path/directory/ --dem_resolution 1 --compute_elevation mean --file_data_type gtif --remove_tiles --point_density_map --cpu_workload 0.6
 ```
 
 ### Jupyter notebook interface
@@ -168,7 +183,9 @@ args_list = ['/path/to/aoi/aoi_example.gpkg',
              '--dem_resolution', '1.0',
              '--compute_elevation', 'mean',
              '--file_data_type', 'gtif',
-             '--remove_tiles']
+             '--remove_tiles',
+             '--point_density_map',
+             '--cpu_workload', '0.6']
 ```
 
 ```python
@@ -183,9 +200,11 @@ lidar_downloader.main(args)
 > [!NOTE]   
 > Whatever the case, the script will iterate through all the features (polygons) within the shapefile or geopackage file. It will create a folder for each specific AOI based on the column with the `aoi_name`. If you used your own shapefile, make sure to have one column called `aoi_name`. Otherwise, you can edit the provided file.
 
-# Contact and citation
-For any question/bug/issue, please report it on issues section or contact [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr)
+# Contact and citation ![DOI](https://zenodo.org/badge/706232299.svg)
+For any question/bug/issue regarding this tool, please report it on issues section or contact [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr).
+
+Regarding the LiDAR HD data, please visit their [webpage](https://geoservices.ign.fr/lidarhd) to know more about how to cite their data.
 
 > [!IMPORTANT]   
-> Please don't be lazy and cite this tool using the following [DOI](https://zenodo.org/doi/10.5281/zenodo.10697626). 
+> If you use this tool, please cite using the following [DOI](https://zenodo.org/doi/10.5281/zenodo.10697626). This allows to give some recognition for the time invested and open access to this tool. 
 ![DOI](https://zenodo.org/badge/706232299.svg)

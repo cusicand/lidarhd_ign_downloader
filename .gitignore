@@ -12,3 +12,4 @@
 *.tif
 *.xml
 __pycache__
+ign_resources/
