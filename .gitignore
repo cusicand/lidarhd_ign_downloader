@@ -13,3 +13,6 @@
 *.xml
 __pycache__
 ign_resources/
+38_barraux.gpkg
+barraux/mnt_barraux_1m.vrt
+barraux/barraux/barraux.qgz
