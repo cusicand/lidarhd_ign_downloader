@@ -149,9 +149,10 @@ def get_municipality_info(code_commune: int):
     process = subprocess.Popen(
         bbox_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True
     )
+    print(bbox_cmd)
     std_out, std_err = process.communicate()
     if process.returncode != 0:
-        logging.error(f"An error occurred: {std_err}")
+        print(f"An error occurred: {std_err}")
         return gpd.GeoDataFrame()
     else:
         data = json.loads(std_out)
@@ -163,12 +164,13 @@ def get_municipality_info(code_commune: int):
 def get_municipality_outline(code_commune: int):
     """Get the outline of a municipality from the IGN API."""
     bbox_cmd = f'curl "https://geo.api.gouv.fr/communes?code={code_commune}&format=geojson&geometry=contour&fields=code,nom"'
+    print(bbox_cmd)
     process = subprocess.Popen(
         bbox_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True
     )
     std_out, std_err = process.communicate()
     if process.returncode != 0:
-        logging.error(f"An error occurred: {std_err}")
+        print(f"An error occurred: {std_err}")
         return gpd.GeoDataFrame()
     else:
         data = json.loads(std_out)
