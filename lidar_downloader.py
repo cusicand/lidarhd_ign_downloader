@@ -141,6 +141,7 @@ def print_infoBM(text: str, bold: bool = False) -> None:
 
 # END def
 
+
 def get_municipality_info(code_commune: int):
     """Get the information of a municipality from the IGN API."""
     bbox_cmd = f'curl "https://geo.api.gouv.fr/communes?code={code_commune}&format=geojson&geometry=bbox&fields=code,nom"'
@@ -156,8 +157,8 @@ def get_municipality_info(code_commune: int):
         gdf = gpd.GeoDataFrame.from_features(data, crs="EPSG:4326")
         gdf.to_crs(epsg=2154, inplace=True)  # Convert the CRS to RGF93 / Lambert-93
         return gdf
-    
-    
+
+
 def get_municipality_outline(code_commune: int):
     """Get the outline of a municipality from the IGN API."""
     bbox_cmd = f'curl "https://geo.api.gouv.fr/communes?code={code_commune}&format=geojson&geometry=contour&fields=code,nom"'
@@ -173,7 +174,7 @@ def get_municipality_outline(code_commune: int):
         gdf = gpd.GeoDataFrame.from_features(data, crs="EPSG:4326")
         gdf.to_crs(epsg=2154, inplace=True)  # Convert the CRS to RGF93 / Lambert-93
         return gdf
-    
+
 
 def pdalwrench_bin(bin_name: str) -> bool:
     """Search for PDAL wrench binaries.
@@ -242,6 +243,8 @@ def pdal_json_pipeline(
         ]
     }
     return pdal_json_pipeline
+
+
 # END def
 
 
@@ -347,7 +350,7 @@ def download_file(url: str, output_path: str | Path) -> None:
         url (str): URL of the file to download.
         output_path (str | Path): Output path to store the downloaded file.
     """
-    print('Start download of ', url)
+    print("Start download of ", url)
     response = requests.get(url, timeout=10)
     if "content-disposition" in response.headers:
         content_disposition = response.headers["content-disposition"]
@@ -356,7 +359,7 @@ def download_file(url: str, output_path: str | Path) -> None:
     else:
         filename = url.split("/")[-1]
     if not os.path.exists(os.path.join(output_path, filename)):
-        print ('Downloading ', filename)
+        print("Downloading ", filename)
         with open(os.path.join(output_path, filename), mode="wb") as file:
             file.write(response.content)
         print_infoBM(f"{filename} Downloaded.")
@@ -405,6 +408,8 @@ def download_data(selected_tiles: gpd.GeoDataFrame, out_dir: str | Path) -> None
         print_infoBM(f"Downloading {selected_tiles['nom_pkk'].values[0]}\n-----")
         wget.download(url=selected_tiles["url_telech"].values[0], out=str(out_dir))
     # END if
+
+
 # END def
 
 
@@ -437,6 +442,8 @@ def download_LiDAR_tiles_database(out_dir: str | Path) -> None:
             )
             exit(1)
     # END try
+
+
 # END def
 
 
@@ -450,7 +457,7 @@ def main(args: argparse.Namespace = None):
     data_path = project_path / "data"
     data_path.mkdir(parents=True, exist_ok=True)
 
-    raw_lidar_data_path = data_path / "external" / "lidarhd_ign"/"raw_laz_data"
+    raw_lidar_data_path = data_path / "external" / "lidarhd_ign" / "raw_laz_data"
     raw_lidar_data_path.mkdir(parents=True, exist_ok=True)
     lidar_products = data_path / "external" / "lidarhd_ign" / "lidar_products"
     lidar_products.mkdir(parents=True, exist_ok=True)
@@ -458,10 +465,10 @@ def main(args: argparse.Namespace = None):
     # percentage of the CPU workload to be used for processing.
     # Warning: keep some CPUs for the OS and other processes(at least 4 CPUs).
     CPU_WORKLOAD = args.cpu_workload
-    
+
     if args.out_data_path == None:
         # Default workdir to script's parent directory if out_data_path is not specified
-        workdir = data_path / "external" / "lidarhd_ign" 
+        workdir = data_path / "external" / "lidarhd_ign"
         print_infoBM(
             "As not out_path have been specified, data will be stored by default in 'data/external/lidarhd_ign' directory."
         )
@@ -472,11 +479,10 @@ def main(args: argparse.Namespace = None):
         # END if
         print_infoBM(f"Data will be stored in {workdir}/raw_laz_data")
     # END if
-    
-    
+
     # First, we need to download the LiDAR-HD IGN database cmd_pdal_wrench
     print_infoBM("Stage 1 -> Downloading IGN database . . .")
-    
+
     lidar_database_path = workdir
     print(lidar_database_path)
     if not lidar_database_path.joinpath("TA_programme_LiDAR-HD").exists():
@@ -486,10 +492,14 @@ def main(args: argparse.Namespace = None):
         "TA_programme_LiDAR-HD", "TA_diff_pkk_lidarhd_classe.shp"
     )
     if not tiles_fn.exists():
-        download_LiDAR_tiles_database(lidar_database_path.joinpath("TA_programme_LiDAR-HD"))
+        download_LiDAR_tiles_database(
+            lidar_database_path.joinpath("TA_programme_LiDAR-HD")
+        )
         # Unzipping downloaded file
         print_infoBM("Unzipping downloaded file . . .")
-        zip_database_fn = lidar_database_path.joinpath("TA_programme_LiDAR-HD", "grille.zip")
+        zip_database_fn = lidar_database_path.joinpath(
+            "TA_programme_LiDAR-HD", "grille.zip"
+        )
         result = subprocess.run(
             f"unzip {str(zip_database_fn)} -d {str(zip_database_fn.parent)}",
             shell=True,
@@ -514,7 +524,9 @@ def main(args: argparse.Namespace = None):
                 item.unlink()  # Removes files
             # END if
         # END for
-        download_LiDAR_tiles_database(lidar_database_path.joinpath("TA_programme_LiDAR-HD"))
+        download_LiDAR_tiles_database(
+            lidar_database_path.joinpath("TA_programme_LiDAR-HD")
+        )
     # END if
 
     print_infoBM(f"Stage 2 -> Working on '{workdir}' directory.")
@@ -522,39 +534,39 @@ def main(args: argparse.Namespace = None):
     # Reading shapefiles using GeoPandas. Can take several seconds
     print_infoBM(f"Reading LiDAR-HD database on {lidar_database_path} . . .")
     tiles_df = gpd.read_file(tiles_fn, engine="pyogrio")
-    
+
     print_infoBM("Reading AOI info from code commune. . .")
-    
+
     # # Check if code_com file exists
     code_com = args.code_municipality
-    
-    #aoi_df = gpd.read_file(args.aoi_file, engine="pyogrio")
+
+    # aoi_df = gpd.read_file(args.aoi_file, engine="pyogrio")
     municipality_gdf = get_municipality_info(code_com)
     roi_name = municipality_gdf.nom.values[0]
     print_infoBM(f"Processing {roi_name} . . .")
-      
+
     interim_data_path = data_path / "interim" / roi_name
     interim_data_path.mkdir(parents=True, exist_ok=True)
     processed_data_path = data_path / "processed" / roi_name
     processed_data_path.mkdir(parents=True, exist_ok=True)
     extraction_path = workdir.joinpath("raw_laz_data")
     extraction_path.mkdir(parents=True, exist_ok=True)
-    
+
     municipality_outline_gdf = get_municipality_outline(code_com)
     municipality_outline_gdf.to_file(processed_data_path / f"{roi_name}_contour.gpkg")
 
-    selection = gpd.sjoin(tiles_df, municipality_gdf, how='inner')
-    #lst_tiles_id = gdf_tiles_id.nom_left.to_list()
+    selection = gpd.sjoin(tiles_df, municipality_gdf, how="inner")
+    # lst_tiles_id = gdf_tiles_id.nom_left.to_list()
 
-    #for i in aoi_df.index:
+    # for i in aoi_df.index:
     # print_infoBM(f"Iterating through {i+1}/{len(aoi_df)} features within AOI")
     # aoi_row = aoi_df.loc[[i]]
     # # Spatial request to select the intersection between two shapefiles
-    #selection = tiles_df[tiles_df.intersects(aoi_row.geometry.values[0])]
+    # selection = tiles_df[tiles_df.intersects(aoi_row.geometry.values[0])]
     # print_infoBM(
     #     f"{len(selection)} tiles intersects '{aoi_df.loc[[i]].aoi_name.values[0]}' AOI."
     # )
-    #aoi_path = interim_data_path
+    # aoi_path = interim_data_path
 
     # END if
     #  Multi-threaded downloading process:
@@ -582,9 +594,7 @@ def main(args: argparse.Namespace = None):
     print_infoBM("Stage 3 -> Converting *.laz tiles to *.tif DEMs.")
     # Processing LiDAR tiles using multi-threading strategy
     list_tiff_files_merge = []
-    with concurrent.futures.ProcessPoolExecutor(
-        max_workers=max_workers
-    ) as executor:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
         laz_tif_elevation_jobs = []
         for j in tqdm(range(len(selection))):
             laz_path = extraction_path.joinpath(selection["nom_pkk"].values[j])
@@ -596,7 +606,7 @@ def main(args: argparse.Namespace = None):
                     f"Skipping conversion for '{laz_path.name}' as output '{dem_out_path.name}' already exists."
                 )
                 continue
-            
+
             print_infoBM(
                 f"Converting '{laz_path.name}' file into '{dem_out_path.name}'"
             )
@@ -670,7 +680,7 @@ def main(args: argparse.Namespace = None):
                         f"Skipping TIN interpolation for '{laz_path.name}' as output '{dem_tin_out_path.name}' already exists."
                     )
                     continue
-                                    
+
                 print_infoBM(
                     f"Computing TIN interpolation for '{laz_path.name}' file into '{dem_tin_out_path.name}'"
                 )
@@ -687,11 +697,11 @@ def main(args: argparse.Namespace = None):
                 except Exception as exc:
                     print_infoBM(f"Processing generated an exception: {exc}")
 
-    #os.chdir(aoi_path)
+    # os.chdir(aoi_path)
     # Merge all tiles by a given resolution
     cmd = []
     merge_out_path = interim_data_path.joinpath(
-        f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged.tif"
+        f"{roi_name}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged.tif"
     )
     if args.file_data_type == "gtif":
         cmd.extend(
@@ -719,7 +729,7 @@ def main(args: argparse.Namespace = None):
                 f"{args.dem_resolution}",
                 "-r",
                 "bilinear",
-                f"{aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.vrt",
+                f"{roi_name}_{args.dem_resolution}_merged.vrt",
                 f"{' '.join(list_tiff_files_merge)}",
             ]
         )
@@ -736,7 +746,7 @@ def main(args: argparse.Namespace = None):
     if args.point_density_map:
         cmd_merge_pointdensity = []
         merge_pointdensity_out_path = interim_data_path.joinpath(
-            f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged_PointDensity.tif"
+            f"{roi_name}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged_PointDensity.tif"
         )
         cmd_merge_pointdensity.extend(
             [
@@ -765,12 +775,12 @@ def main(args: argparse.Namespace = None):
             text=True,
             check=True,
         )
-        
+
     # Merge all tin tiles by a given resolution
     if args.triangulation_interpolation:
         cmd_merge_tin = []
         merge_tin_out_path = interim_data_path.joinpath(
-            f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged_TIN.tif"
+            f"{roi_name}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged_TIN.tif"
         )
         cmd_merge_tin.extend(
             [
@@ -799,7 +809,7 @@ def main(args: argparse.Namespace = None):
             text=True,
             check=True,
         )
-    #TODO: remove tin tiles after processing    
+    # TODO: remove tin tiles after processing
     # Remove individual tiles
     if args.remove_tiles:
         print_infoBM("Stage 6 -> Removing individual DEM tiles.")
@@ -816,14 +826,14 @@ def main(args: argparse.Namespace = None):
                 try:
                     os.remove(density_tile)
                 except FileNotFoundError:
-                    raise ValueError(
-                        f"File {density_tile} not found. Cannot remove."
-                    )
+                    raise ValueError(f"File {density_tile} not found. Cannot remove.")
                     pass
                 # END try
             # END for
         # END if
     # END if
+
+
 # END for
 
 
