@@ -22,6 +22,7 @@ import time
 import argparse
 import subprocess
 import shutil
+import logging
 
 from pathlib import Path
 import wget
