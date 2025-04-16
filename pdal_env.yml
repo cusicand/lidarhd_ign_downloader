@@ -10,7 +10,6 @@ dependencies:
   - gdal
   - untwine
   - geopandas
-  - python-wget
   - pathlib2
   - tqdm
   - ipykernel
