@@ -20,7 +20,8 @@ Visit the [IGN-France website](https://geoservices.ign.fr/lidarhd) for updates o
 3. [Installation](#installation)
 4. [Pdal_wrench installation (optional but very useful)](#pdal_wrench-installation-optional)
 5. [How to use](#how-to-use)
-6. [Contact and citation](#contact-and-citation)
+6. [Use with Docker](#use-with-docker)
+7. [Contact and citation](#contact-and-citation)
 
 ## Required packages
 - python (conda) environment
@@ -197,6 +198,26 @@ lidar_downloader.main(args)
 
 > [!NOTE]   
 > After version 3.0, the script will iterate through all the *.gpkg files provided in the command line [see recommended use)](#recommended-use). It will create a folder for each specific AOI based on their filename by default. AOI file can contain any projection (EPSG:4326).
+
+## USE WITH DOCKER
+
+Build docker image with: `docker build . -t bilbud/lidarhd_ign_downloader`
+
+Or pull image from Docker Hub: `docker pull bilbud/lidarhd_ign_downloader`
+
+Run with: 
+```
+docker run -it \
+-v $(pwd)/aoi_example.gpkg:/aoi_file.gpkg \
+-v $(pwd)/data/out:/data/out/ \
+bilbud/lidarhd_ign_downloader
+```
+
+Once in the shell, interact with CLI as described in [How to use](#how-to-use).
+
+Example:
+
+`lidar_downloader.py /aoi_file.gpkg -out_data /data/out/ -tr 1 -compute_elev mean -dtype gtif -rm_tiles -pdensity -cpu_w 0.6`
 
 # Contact and citation ![DOI](https://zenodo.org/badge/706232299.svg)
 For any question/bug/issue regarding this tool, please report it on issues section or contact [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr).
