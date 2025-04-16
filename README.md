@@ -8,10 +8,10 @@
 
 **contact**: [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr)
 
-Python scripts to quick download and resample LiDAR HD classified point clouds from IGN-France.
-This python script can be executed on command line interface (CLI) as well as within a Jupyter Notebook. Look at the [How to use section](#how-to-use) for more details.
+Python scripts to quickly download and resample LiDAR HD classified point clouds from IGN-France.  
+This Python script can be executed on the command-line interface (CLI) as well as within a Jupyter Notebook. Refer to the [How to use section](#how-to-use) for more details.
 
-Refer to [IGN-France website](https://geoservices.ign.fr/lidarhd) for news about data processing.
+Visit the [IGN-France website](https://geoservices.ign.fr/lidarhd) for updates on data processing.
 
 ## Contents
 
@@ -31,7 +31,6 @@ Refer to [IGN-France website](https://geoservices.ign.fr/lidarhd) for news about
   - gdal
   - untwine
   - geopandas
-  - python-wget
   - pathlib2
   - tqdm
   - ipykernel
@@ -47,9 +46,9 @@ cd ./lidarhd_ign_downloader
 ```
 ## Installation
 
-Most of the libraries required for this script are standard and are often pre-installed in conda python environments. Please follow the instructions below depending on your requirements.
+Most of the libraries required for this script are standard and are often pre-installed in conda Python environments. Please follow the instructions below based on your requirements.
 
-If you already have a conda python environment pre-installed, please follow the instruction in section [Install on pre-existing conda python environment](#install-on-an-existing-python-environment) section. Otherwise, you will need to install a conda python environment to use this script. Instructions are given in the section [Install packages on a new conda python environment](#install-packages-on-a-new-python-environment).
+If you already have a conda Python environment pre-installed, please follow the instructions in the section [Install on an existing conda Python environment](#install-on-an-existing-python-environment). Otherwise, you will need to install a conda Python environment to use this script. Instructions are provided in the section [Install packages on a new conda Python environment](#install-packages-on-a-new-python-environment).
 
 ### Install packages on an existing python environment
 
@@ -126,7 +125,7 @@ Use `source ~/.bashrc` to reload changes.
 
 ## PDAL_WRENCH installation (optional but very useful)
 
-After version 2.0 of `lidar_downloader` we introduce the possibility to generate point density map to quantitatively estimate the number of points at a given resolution. This tasks is based on `pdal_wrench` and requires individual installation. A detailed description could be found [wrench GitHub](https://github.com/PDAL/wrench). Further investigation are ongoing to better integrate pdal_wrench within `lidar_downloader`.
+After version 2.0 of `lidar_downloader`, we introduced the possibility to generate a point density map to quantitatively estimate the number of points at a given resolution. This task is based on `pdal_wrench` and requires a separate installation. A detailed description can be found on the [wrench GitHub](https://github.com/PDAL/wrench). Further investigations are ongoing to better integrate `pdal_wrench` within `lidar_downloader`.
 
 > [!NOTE]
 > `Pdal_wrench density` tool has been tested in high mountain environments where vegetation is not an issue. Future test should be conducted in environments with denser vegetation.
@@ -145,28 +144,27 @@ export PATH=$PDWRENCH:$PATH
 
 ### Command line interface (CLI)
 
-Inside the command line prompt, type `python lidar_downloader.py -h` to access to the help of the tool.
+Inside the command line prompt, type `python lidar_downloader.py -h` to access the help for the tool.
 
-This small tool needs and Area of Interest (AOI) in *.shp or *.gpkg format as mandatory argument. Then, we can switch between several parameters like:
+This tool requires an Area of Interest (AOI) in *.shp or *.gpkg format as a mandatory argument. After version 3.0, several AOIs can be specified. Extracted DEM s=will take the name of the AOI file by default.  Additionally, several parameters can be specified, such as:
 
-Then, we can switch between several parameters like:
-- `-out_data` or `--out_data_path` Out data-path directory. If not specified, data will be stored in lidar_downloader.py base-path by default.
-- `-tr` or `--dem_resolution` to select the desired resolution of the output DEM.
-- `-compute_elev` or `--compute_elevation` to select the way of how compute elevation. options are {mean,min,max,median}. Default value : mean. This parameter is still experimental.
-- `-dtype` or `--file_data_type` to switch between `GTiff` and `VRT` files.
-- `-force_database` or  `--force_redownload_database` to force re-download of IGN database. Default value: False.
-- `-rm_tiles` or `--remove_tiles` to remove individual downloaded tiles after processing. Default value: True.
-- `-pdensity` or `--point_density_map` to generates point density map for given resolution. **Requires pdal_wrench installed**. Default value: True. Refer to [PDAL_WRENCH installation (optional)](#pdal_wrench-installation-optional).
-- `-cpu_w` or `--cpu_workload` ratio allow to process the data using a multi-thread strategy. This value represents the percentage of CPU used for processing. **Warning:** Its recommended to keep some CPUs for the OS and other processes (at least 4 CPUs). Default value: 0.6. Max value = 1.0.
+- `-out_data` or `--out_data_path`: Specifies the output data directory. If not provided, data will be stored in the base path of `lidar_downloader.py` by default.
+- `-tr` or `--dem_resolution`: Sets the desired resolution of the output DEM.
+- `-compute_elev` or `--compute_elevation`: Determines how elevation is computed. Options are `{mean, min, max, median}`. The default value is `mean`. This parameter is still experimental.
+- `-dtype` or `--file_data_type`: Switches between `gtif` and `vrt` file formats.
+- `-force_database` or `--force_redownload_database`: Forces the re-download of the IGN database. Default value: `False`.
+- `-rm_tiles` or `--remove_tiles`: Removes individual downloaded tiles after processing. Default value: `True`.
+- `-pdensity` or `--point_density_map`: Generates a point density map for the given resolution. **Requires `pdal_wrench` to be installed.** Default value: `True`. Refer to the [PDAL_WRENCH installation (optional)](#pdal_wrench-installation-optional) section for more details.
+- `-cpu_w` or `--cpu_workload`: Specifies the CPU usage ratio for processing data using a multi-threaded strategy. This value represents the percentage of CPU resources allocated for processing. **Warning:** It is recommended to reserve some CPUs for the OS and other processes (at least 4 CPUs). Default value: `0.6`. Maximum value: `0.8`.
 
 #### Recommended use
 Below is an example using the supplied shapefile:
 ```bash
-lidarhd_downloader.py aoi_example.gpkg -out_data /home/user/some/path/directory/ -tr 1 -compute_elev mean -dtype gtif -rm_tiles -pdensity -cpu_w 0.6
+lidar_downloader.py /path/to/aoi_example.gpkg -out_data /home/user/some/path/directory/ -tr 1 -compute_elev mean -dtype gtif -rm_tiles -pdensity -cpu_w 0.6
 ```
-or 
+or with several AOI files:
 ```bash
-lidarhd_downloader.py aoi_double.shp --out_data_path /home/user/some/path/directory/ --dem_resolution 1 --compute_elevation mean --file_data_type gtif --remove_tiles --point_density_map --cpu_workload 0.6
+lidar_downloader.py /path/to/aoi_example1.gpkg /path/to/aoi_example2.gpkg /path/to/aoi_example2.gpkg --out_data_path /home/user/some/path/directory/ --dem_resolution 1 --compute_elevation mean --file_data_type gtif --remove_tiles --point_density_map --cpu_workload 0.6
 ```
 
 ### Jupyter notebook interface
@@ -198,7 +196,7 @@ lidar_downloader.main(args)
 ```
 
 > [!NOTE]   
-> Whatever the case, the script will iterate through all the features (polygons) within the shapefile or geopackage file. It will create a folder for each specific AOI based on the column with the `aoi_name`. If you used your own shapefile, make sure to have one column called `aoi_name`. Otherwise, you can edit the provided file.
+> After version 3.0, the script will iterate through all the *.gpkg files provided in the command line [see recommended use)](#recommended-use). It will create a folder for each specific AOI based on their filename by default. AOI file can contain any projection (EPSG:4326).
 
 # Contact and citation ![DOI](https://zenodo.org/badge/706232299.svg)
 For any question/bug/issue regarding this tool, please report it on issues section or contact [diego.cusicanqui@univ-grenoble-alpes.fr](mailto:diego.cusicanqui@univ-grenoble-alpes.fr).
@@ -206,5 +204,5 @@ For any question/bug/issue regarding this tool, please report it on issues secti
 Regarding the LiDAR HD data, please visit their [webpage](https://geoservices.ign.fr/lidarhd) to know more about how to cite their data.
 
 > [!IMPORTANT]   
-> If you use this tool, please cite using the following [DOI](https://zenodo.org/doi/10.5281/zenodo.10697626). This allows to give some recognition for the time invested and open access to this tool. 
+> If you use this tool, please cite using the following [DOI](https://zenodo.org/doi/10.5281/zenodo.10697626). This will allow some recognition of the time invested and open access to this tool. 
 ![DOI](https://zenodo.org/badge/706232299.svg)
