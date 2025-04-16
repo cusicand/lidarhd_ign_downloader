@@ -23,13 +23,14 @@ import argparse
 import subprocess
 import shutil
 
-from pathlib import Path
-import wget
 import requests
 import json
 import pdal
 from tqdm import tqdm
+from pathlib import Path
+from datetime import datetime
 
+import pandas as pd
 import geopandas as gpd
 import psutil
 import concurrent.futures
@@ -49,7 +50,8 @@ def getparser():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=args_desc)
     # MANDATORY - Inputs
-    parser.add_argument("aoi_file", type=str, help="path to AOI file. File can be either in *.shp or *.gpkg format")
+    # parser.add_argument("aoi_file", type=str, help="path to AOI file. File can be either in *.shp or *.gpkg format")
+    parser.add_argument("aoi_file", type=str, nargs='+', help="path(s) to AOI file(s). Files can be either in *.shp or *.gpkg format")
     # OPTIONNALS
     parser.add_argument("-out_data", "--out_data_path", type=str, default=None,
                         help="Out data-path directory. If not specified, data will be stored in lidar_downloader.py base-path by default.")
@@ -58,7 +60,7 @@ def getparser():
     parser.add_argument("-compute_elev", "--compute_elevation", default="mean",
                         choices=["mean", "min", "max", "median"],
                         help="Compute elevation statistics. Default value : mean")
-    parser.add_argument("-dtype", "--file_data_type", type=str, default="gtiff",
+    parser.add_argument("-dtype", "--file_data_type", type=str, default="gtif",
                         choices=["gtif", "vrt"],
                         help="Outout data format between GeoTIff and Virtual Dataset (VRT). Default value : gtif")
     parser.add_argument("-force_database", "--force_redownload_database", action="store_true",
@@ -68,10 +70,10 @@ def getparser():
     parser.add_argument("-pdensity", "--point_density_map", action="store_true",
                         help="Generates point density map for given resolution. Requires pdal_wrench installed. Default value: False")
     parser.add_argument("-cpu_w", "--cpu_workload", type=float, default=0.6,
-                        help="Multi-threaded process ratio. Default value: 0.6. Max value = 1.0.")
+                        help="Multi-threaded processing ratio. The maximum value of 0.8 is used to ensure that the programme does not crash. Default value: 0.6. Max value = 0.8.")
     return parser
 # END def
-
+#%%
 def print_infoBM(text: str,
                 bold: bool = False) -> None:
     """Prints a formatted message in the console.
@@ -86,7 +88,7 @@ def print_infoBM(text: str,
     else:
         print(f"{GMC_TEXT} {text}")
 #END def
-
+#%%
 def pdalwrench_bin(bin_name: str) -> bool:
     """Search for PDAL wrench binaries.
 
@@ -134,21 +136,30 @@ def pdal_json_pipeline(input_laz_fn: str | Path,
     """
     pdal_json_pipeline = {
         "pipeline": [
-            # To do: check if this is a text or posix object
             input_laz_fn,
-            {"type": "filters.range", "limits": "Classification[0:2]"},
+            {"type": "filters.range",
+             "limits": "Classification[0:2]"}, #! TODO: check for better classification
             {
                 "filename": out_tif_fn,
                 "gdaldriver": "GTiff",
                 "output_type": compute_elev,
                 "resolution": tr,
                 "type": "writers.gdal",
+                # #! TODO: check for better compression options
+                # "creation_options": [
+                #     "COMPRESS=LZW",
+                #     "PREDICTOR=2",
+                #     "ZLEVEL=9",
+                #     "NUM_THREADS=ALL_CPUS",
+                # ],
+                # "nodata": -9999,
+                # "data_type": "Float32",
             },
         ]
     }
     return pdal_json_pipeline
 # END def
-
+#%%
 def process_tile(laz_path: str | Path,
                 output_path: str | Path,
                 compute_elev: str = "mean",
@@ -167,7 +178,7 @@ def process_tile(laz_path: str | Path,
     pipeline = pdal.Pipeline(pdal_json_str)
     pipeline.execute()
     #END def
-
+#%%
 def pdal_wrench_density(input_laz_fn: str | Path,
                         out_tif: str | Path,
                         tr: int | float = 1.0) -> list[str]:
@@ -193,7 +204,7 @@ def pdal_wrench_density(input_laz_fn: str | Path,
     )
     subprocess.run(' '.join(cmd_pdal_wrench), shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return cmd_pdal_wrench
-
+#%%
 def download_file(url: str,
                 output_path: str | Path) -> None:
     """Download file from a given URL.
@@ -230,58 +241,92 @@ def get_lidar_tiles(tiles_df: gpd.GeoDataFrame,
     intersection = tiles_df[tiles_df.intersects(aoi_feature.geometry.values[0])]
     return intersection
 # END def
-
-def download_data(selected_tiles: gpd.GeoDataFrame, out_dir: str | Path) -> None:
-    """Download desired tiles.
-
-    This function check first if data exist into indicated `out_laz_dir`.
-    If yes, the function pass the downloading process. If not, will download.
-
-    Args:
-        selected_tiles (gpd.GeoDataFrame): Desired ign tiles.
-        out_laz_dir (str | Path): Out directory path.
-    """
-    # Check if file already exist
-    if out_dir.joinpath(selected_tiles["nom_pkk"].values[0]).exists():
-        print_infoBM(f"File {out_dir.joinpath(selected_tiles['nom_pkk'].values[0])} already exist")
-        pass
-    else:
-        print_infoBM(f"Downloading {selected_tiles['nom_pkk'].values[0]}\n-----")
-        wget.download(url=selected_tiles["url_telech"].values[0], out=str(out_dir))
-    # END if
-# ENd def
-
-def download_LiDAR_tiles_database(out_dir: str | Path) -> None:
-    """Download IGN LiDAR database.
-
-    This function will download IGN LiDAR database if not exist.
+#%%
+def fetch_chunk(url: str,
+                ntiles: int,
+                start_index: int) -> gpd.GeoDataFrame:
+    """Fetch a chunk of data from the given URL.
+    This function constructs a URL with the specified parameters and retrieves
+    the corresponding data. It handles any exceptions that may occur during
+    the retrieval process and returns None if an error occurs.
 
     Args:
-        out_dir (str | Path): Out directory path.
+        url (str): tiles url
+        ntiles (int): number of tiles to fetch
+        start_index (int): index to start fetching from
+
+    Returns:
+        gpd.GeoDataFrame: returns a GeoDataFrame containing the fetched data, or None if an error occurs.
     """
-    # First try: Downloading IGN database from official website
-    print_infoBM("Checking IGN database from official website . . .")
     try:
-        primary_url = "https://diffusion-lidarhd-classe.ign.fr/download/lidar/shp/classe"
-        wget.download(
-            url=primary_url,
-            out=str(out_dir)
-        )
+        params = f"&STARTINDEX={start_index}&COUNT={ntiles}&SRSNAME=urn:ogc:def:crs:EPSG::2154"
+        full_url = url + params
+        gdf = gpd.read_file(full_url)
+        return gdf if not gdf.empty else None
     except Exception as e:
-        print_infoBM(f"Primary download failed with error: {e}")
-        print_infoBM("Switching to alternative download link on Zenodo . . .")
-        try:
-            alternative_url = "https://zenodo.org/records/13793544/files/grille.zip"
-            wget.download(
-                url=alternative_url,
-                out=str(out_dir)
-            )
-        except Exception as e:
-            print_infoBM(f"Alternative download failed with error: {e}")
-            print_infoBM("Both download attempts failed. Please check your internet connection or the availability of the URLs.")
-            exit(1)
-    # END try
+        # print(f"WARNING: Error fetching index {start_index}: {e}")
+        return None
 # END def
+# %%
+def url2bloc(url_series: pd.Series) -> pd.Series:
+    """Convert URLs to block identifiers.
+    Args:
+        url_series (pd.Series): Series containing URLs.
+    Returns:
+        pd.Series: Series containing block identifiers.
+    """
+    # Example dummy implementation
+    return url_series.apply(lambda x: x.split("/")[-1].split(".")[0] if isinstance(x, str) else None)
+# END def
+# %%
+def download_lidarhd_database(
+    url: str = "https://data.geopf.fr/private/wfs/wfs?apikey=interface_catalogue&SERVICE=WFS&REQUEST=GetFeature&VERSION=2.0.0&TYPENAMES=IGNF_LIDAR-HD_TA:nuage-dalle",
+    out_dir: str | Path = None,
+    max_pages: int = 100,
+    ntiles: int =5000,
+    cpu_workers: int | float = 12) -> str | Path:
+    """Downloads the LiDAR-HD database from the specified URL.
+    This function uses a ThreadPoolExecutor to fetch data in parallel,
+    and it concatenates the fetched data into a single GeoDataFrame.
+    It also processes the data by renaming columns and dropping unnecessary ones.
+    Finally, it saves the processed data to a GeoPackage file in the specified output directory.
+    If the output directory is not specified, it defaults to the current working directory.
+    The function returns the path to the saved GeoPackage file.
+
+    Args:
+        url (_type_, optional): WFS url. Defaults to "https://data.geopf.fr/private/wfs/wfs?apikey=interface_catalogue&SERVICE=WFS&REQUEST=GetFeature&VERSION=2.0.0&TYPENAMES=IGNF_LIDAR-HD_TA:nuage-dalle".
+        out_dir (str | Path, optional): outout directory. Defaults to None.
+        max_pages (int, optional): max number of pages of WFS service. Defaults to 100.
+        ntiles (int, optional): number of tiles. Defaults to 5000.
+        cpu_workers (int | float, optional): number of workers for parallel processing. Defaults to 1.
+
+    Returns:
+        str | Path: returns database filename path.
+    """
+    out_dir = Path(out_dir)
+    start_indexes = [(n - 1) * ntiles for n in range(1, max_pages + 1)]
+    data_chunks = []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=cpu_workers) as executor:
+        futures = {executor.submit(fetch_chunk, url, ntiles, idx): idx for idx in start_indexes}
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result is not None:
+                data_chunks.append(result)
+    #END with
+    # Concatenate all data chunks into a single DataFrame and process it
+    if data_chunks:
+        database = pd.concat(data_chunks, ignore_index=True)
+        database['bloc'] = url2bloc(database['url'])
+        database = database.rename(columns=lambda x: x.replace("url", "url_telech").replace("name", "nom_pkk"))
+        database = database.drop(columns=['gml_id'], errors='ignore')
+    #END if
+    database_filename_path = out_dir / f"LidarHD_tiles_database_{datetime.today().strftime('%Y-%m-%d')}.gpkg"
+    print(f"Saving database in: {database_filename_path}")
+    database.to_file(out_dir / f"{database_filename_path}", driver='GPKG')
+    #END if
+    return database_filename_path
+#END def
 # %%
 def main(args: argparse.Namespace = None):
     if args is None:
@@ -289,9 +334,18 @@ def main(args: argparse.Namespace = None):
         parser = getparser()
         args = parser.parse_args()
     # END if
+    aois_files_list = [Path(aoi_file).resolve() for aoi_file in args.aoi_file]
     # percentage of the CPU workload to be used for processing. 
     # Warning: keep some CPUs for the OS and other processes(at least 4 CPUs).
-    CPU_WORKLOAD = args.cpu_workload
+    if args.cpu_workload > 0.8:
+        CPU_WORKLOAD = 0.8
+    else:
+        CPU_WORKLOAD = args.cpu_workload
+    # END if    
+    # Multi-processing PDAL processing
+    cpu_count = len(psutil.Process().cpu_affinity()) # https://stackoverflow.com/questions/57260410/python-psutil-cpu-count-returns-wrong-number-of-cpus
+    max_workers = int(cpu_count * CPU_WORKLOAD)
+    
     if args.out_data_path == None:
         # Default workdir to script's parent directory if out_data_path is not specified
         workdir = Path(__file__).resolve().parent
@@ -304,40 +358,34 @@ def main(args: argparse.Namespace = None):
         print_infoBM(f"Data will be stored in {workdir}/raw_laz_data")
     # END if
     # First, we need to download the LiDAR-HD IGN database
-    print_infoBM("Stage 1 -> Downloading IGN database . . .")
+    print_infoBM("Stage 1 -> Looking for LiDAR-HD database . . .")
     lidar_database_path = Path(__file__).resolve().parent
     # Check if ign_resources directory exist
-    print(lidar_database_path)
+    # print(lidar_database_path)
     if not lidar_database_path.joinpath("ign_resources").exists():
         lidar_database_path.joinpath("ign_resources").mkdir()
     # END if
-    tiles_fn = lidar_database_path.joinpath("ign_resources", "TA_diff_pkk_lidarhd_classe.shp")
-    if not tiles_fn.exists():
-        download_LiDAR_tiles_database(lidar_database_path.joinpath("ign_resources"))
-        # Unzipping downloaded file
-        print_infoBM("Unzipping downloaded file . . .")
-        zip_database_fn = lidar_database_path.joinpath("ign_resources", "grille.zip")
-        result = subprocess.run(f"unzip {str(zip_database_fn)} -d {str(zip_database_fn.parent)}", shell=True,
-                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if result.returncode == 0:
-            print_infoBM("Unzipping completed successfully.")
-        else:
-            print_infoBM(f"Unzipping failed with error: {result.stderr}")
+    tiles_fn = list(lidar_database_path.joinpath("ign_resources").glob("LidarHD_tiles_database_????-??-??.gpkg"))
+    if not tiles_fn:
+        with tqdm(total=1,
+                  desc=f"{print_infoBM('No LiDAR HD database found. Downloading from WFS service . . .')}",
+                  unit="task") as pbar:
+            tiles_fn = download_lidarhd_database(out_dir=lidar_database_path / "ign_resources")
+            pbar.update(1)
+    else:
+        print_infoBM(f"LiDAR HD database found in {str(tiles_fn)}.")
+        tiles_fn = Path(tiles_fn[0])
+        pass
+        if args.force_redownload_database:
+            print_infoBM("Forcing to re-download LiDAR HD database.")
+            tiles_fn[0].unlink(missing_ok=True)  # Remove the existing file
+            with tqdm(total=1,
+                      desc=f"{print_infoBM('Downloading from WFS service . . .')}",
+                      unit="task") as pbar:
+                tiles_fn = download_lidarhd_database(out_dir=lidar_database_path / "ign_resources")
+                pbar.update(1)
+        # END if
     # END if
-    if tiles_fn.exists() & args.force_redownload_database:
-        print_infoBM("Forcing to re-download IGN database.")
-        ign_ressources_path = workdir.joinpath("ign_resources")
-        files_to_delete = ign_ressources_path.glob("*")
-        for item in files_to_delete:
-            if item.is_dir():
-                shutil.rmtree(item)  # Removes directories and their contents
-            else:
-                item.unlink()  # Removes files
-            #END if
-        #END for
-        download_LiDAR_tiles_database(lidar_database_path.joinpath("ign_resources"))
-    # END if
-
     print_infoBM(f"Stage 2 -> Working on '{workdir}' directory.")
 
     extraction_path = workdir.joinpath("raw_laz_data")
@@ -347,19 +395,21 @@ def main(args: argparse.Namespace = None):
     # END if
 
     # Reading shapefiles using GeoPandas. Can take several seconds
-    print_infoBM(f"Reading LiDAR-HD database on {lidar_database_path} . . .")
-    tiles_df = gpd.read_file(tiles_fn, engine="pyogrio")
-    print_infoBM("Reading AOI file . . .")
-    aoi_df = gpd.read_file(args.aoi_file, engine="pyogrio")
+    print_infoBM(f"Reading LiDAR-HD database in {tiles_fn} . . .")
+    tiles_df = gpd.read_file(str(tiles_fn), engine="pyogrio")
 
-    for i in aoi_df.index:
-        print_infoBM(f"Iterating through {i+1}/{len(aoi_df)} features within AOI")
-        aoi_row = aoi_df.loc[[i]]
-        # Spatial request to select the intersection between two shapefiles
-        selection = tiles_df[tiles_df.intersects(aoi_row.geometry.values[0])]
-        print_infoBM(f"{len(selection)} tiles intersects '{aoi_df.loc[[i]].aoi_name.values[0]}' AOI.")
-        aoi_path = workdir.joinpath(aoi_df.loc[[i]].aoi_name.values[0])
-        # Check if directory exist
+    for aoi_file in aois_files_list:
+        print_infoBM(f"Intersecting tiles for '{aoi_file}' AOI file . . .")
+        # print_infoBM(f"Reading {len(aois_files_list)} AOI files . . .")
+        aoi_df = gpd.read_file(aoi_file, engine="pyogrio")
+        if aoi_df.crs.to_epsg() != 2154:
+            # Reprojecting AOI file to match LiDAR-HD database CRS
+            print_infoBM(f"Reprojecting AOI file {aoi_file} to match LiDAR-HD database CRS.")
+            aoi_df = aoi_df.to_crs(epsg=2154)
+        # END if
+        selection = tiles_df[tiles_df.intersects(aoi_df.geometry.values[0])]
+        print_infoBM(f"{len(selection)} tiles intersects '{aoi_file.name}' AOI.")
+        aoi_path = workdir.joinpath(aoi_file.name.split(".")[0])
         if not aoi_path.exists():
             aoi_path.mkdir()
         # END if
@@ -375,11 +425,7 @@ def main(args: argparse.Namespace = None):
                 print_infoBM("%r generated a FileNotFoundError:" % exc)
             except Exception as exc:
                 print_infoBM("%r generated an exception: " % exc)
-
-        # Multi-processing PDAL processing
-        cpu_count = len(psutil.Process().cpu_affinity()) # https://stackoverflow.com/questions/57260410/python-psutil-cpu-count-returns-wrong-number-of-cpus
-        max_workers = int(cpu_count * CPU_WORKLOAD)
-        
+        # END with        
         print_infoBM(f"Stage 3 -> Converting *.laz tiles to *.tif DEMs.")
         # Processing LiDAR tiles using multi-threading strategy
         list_tiff_files_merge = []
@@ -433,7 +479,7 @@ def main(args: argparse.Namespace = None):
         os.chdir(aoi_path)
         # Merge all tiles by a given resolution
         cmd = []
-        merge_out_path = aoi_path.joinpath(f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged.tif")
+        merge_out_path = aoi_path.joinpath(f"{aoi_file.name.split('.')[0]}_LiDARDEM_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged.tif")
         if args.file_data_type == "gtif":
             cmd.extend(
                 [
@@ -460,7 +506,7 @@ def main(args: argparse.Namespace = None):
                     f"{args.dem_resolution}",
                     "-r",
                     "bilinear",
-                    f"{aoi_df.loc[[i]].aoi_name.values[0]}_{args.dem_resolution}_merged.vrt",
+                    f"{aoi_file.name.split('.')[0]}_{args.dem_resolution}_merged.vrt",
                     f"{' '.join(list_tiff_files_merge)}"
                 ]
             )
@@ -470,7 +516,7 @@ def main(args: argparse.Namespace = None):
         # Merge all density tiles by a given resolution
         if args.point_density_map:
             cmd_merge_pointdensity = []
-            merge_pointdensity_out_path = aoi_path.joinpath(f"{aoi_df.loc[[i]].aoi_name.values[0]}_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged_PointDensity.tif")
+            merge_pointdensity_out_path = aoi_path.joinpath(f"{aoi_file.name.split('.')[0]}_LiDARDEM_Res-{args.dem_resolution}_CompElev-{args.compute_elevation}_merged_PointDensity.tif")
             cmd_merge_pointdensity.extend(
                 [
                     "gdal_merge.py",
@@ -513,6 +559,7 @@ def main(args: argparse.Namespace = None):
             # END if
         # END if
     # END for
+    print_infoBM("Processing done. Well done bibi!!")
 # %%
 if __name__ == "__main__":
     start_time = time.time()
