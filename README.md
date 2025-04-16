@@ -152,7 +152,7 @@ This tool requires an Area of Interest (AOI) in *.shp or *.gpkg format as a mand
 - `-tr` or `--dem_resolution`: Sets the desired resolution of the output DEM.
 - `-compute_elev` or `--compute_elevation`: Determines how elevation is computed. Options are `{mean, min, max, median}`. The default value is `mean`. This parameter is still experimental.
 - `-dtype` or `--file_data_type`: Switches between `gtif` and `vrt` file formats.
-- `-force_database` or `--force_redownload_database`: Forces the re-download of the IGN database. Default value: `False`.
+- `-force_database` or `--force_redownload_database`: After version 3.0, we manage to download database from WFS service. Use this parameter re-download LiDAR HD database. Previous file will be deleted. Default value: `False`.
 - `-rm_tiles` or `--remove_tiles`: Removes individual downloaded tiles after processing. Default value: `True`.
 - `-pdensity` or `--point_density_map`: Generates a point density map for the given resolution. **Requires `pdal_wrench` to be installed.** Default value: `True`. Refer to the [PDAL_WRENCH installation (optional)](#pdal_wrench-installation-optional) section for more details.
 - `-cpu_w` or `--cpu_workload`: Specifies the CPU usage ratio for processing data using a multi-threaded strategy. This value represents the percentage of CPU resources allocated for processing. **Warning:** It is recommended to reserve some CPUs for the OS and other processes (at least 4 CPUs). Default value: `0.6`. Maximum value: `0.8`.
