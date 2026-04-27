@@ -35,7 +35,27 @@ import geopandas as gpd
 import psutil
 import concurrent.futures
 from shutil import which as find_executable
+import unicodedata
 
+def format_municipality_name(name):
+    """
+    Transforms a string like 'Les Déserts' into 'les_deserts'.
+    - Lowercases the string.
+    - Removes accents (é -> e).
+    - Replaces spaces with underscores.
+    """
+    # 1. Lowercase
+    name = name.lower()
+    
+    # 2. Normalize to decompose combined characters (like 'é' into 'e' + '´')
+    # and remove non-spacing marks (accents)
+    name = unicodedata.normalize('NFKD', name)
+    name = "".join([c for c in name if not unicodedata.combining(c)])
+    
+    # 3. Replace spaces with underscores
+    name = name.replace(" ", "_")
+    
+    return name
 
 def getparser():
     args_desc = """
@@ -143,74 +163,183 @@ def print_infoBM(text: str, bold: bool = False) -> None:
 # END def
 
 
-def get_municipality_info(code_commune: int):
-    """Get the information of a municipality from the IGN API."""
-    bbox_cmd = f'curl "https://geo.api.gouv.fr/communes?code={code_commune}&format=geojson&geometry=bbox&fields=code,nom"'
-    process = subprocess.Popen(
-        bbox_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True
-    )
-    print(bbox_cmd)
-    std_out, std_err = process.communicate()
-    if process.returncode != 0:
-        print(f"An error occurred: {std_err}")
-        return gpd.GeoDataFrame()
-    else:
-        data = json.loads(std_out)
-        gdf = gpd.GeoDataFrame.from_features(data, crs="EPSG:4326")
-        gdf.to_crs(epsg=2154, inplace=True)  # Convert the CRS to RGF93 / Lambert-93
-        return gdf
+def get_municipality_info(code_commune: str | int):
+    """Get municipality bounding box from the IGN API with retry and timeout."""
+    empty_gdf = gpd.GeoDataFrame(columns=["code", "nom", "geometry"], geometry="geometry", crs="EPSG:2154")
+
+    base_url = "https://geo.api.gouv.fr/communes"
+    params = {
+        "code": str(code_commune),
+        "format": "geojson",
+        "geometry": "bbox",
+        "fields": "code,nom",
+    }
+
+    max_retries = 3
+    timeout_seconds = 20
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.get(base_url, params=params, timeout=timeout_seconds)
+            status = response.status_code
+
+            if status >= 400:
+                if status in (429, 500, 502, 503, 504) and attempt < max_retries:
+                    delay = 2 ** (attempt - 1)
+                    print_infoBM(
+                        f"IGN bbox API status {status} (attempt {attempt}/{max_retries}), retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+                print_infoBM(f"IGN bbox API request failed with status {status}.")
+                return empty_gdf
+
+            if not response.text.strip():
+                if attempt < max_retries:
+                    delay = 2 ** (attempt - 1)
+                    print_infoBM(
+                        f"IGN bbox API returned empty body (attempt {attempt}/{max_retries}), retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+                print_infoBM("IGN bbox API returned an empty response body.")
+                return empty_gdf
+
+            data = response.json()
+            gdf = gpd.GeoDataFrame.from_features(data, crs="EPSG:4326")
+            if gdf.empty:
+                return empty_gdf
+            gdf.to_crs(epsg=2154, inplace=True)
+            return gdf
+
+        except (requests.Timeout, requests.ConnectionError, requests.JSONDecodeError) as e:
+            if attempt < max_retries:
+                delay = 2 ** (attempt - 1)
+                print_infoBM(
+                    f"IGN bbox API transient error (attempt {attempt}/{max_retries}): {e}. Retrying in {delay}s..."
+                )
+                time.sleep(delay)
+                continue
+            print_infoBM(f"IGN bbox API failed after {max_retries} attempts: {e}")
+            return empty_gdf
+        except Exception as e:
+            print_infoBM(f"Unexpected error while reading municipality bbox: {e}")
+            return empty_gdf
+
+    return empty_gdf
 
 
-def get_municipality_outline(code_commune: int):
-    """Get the outline of a municipality from the IGN API."""
-    bbox_cmd = f'curl "https://geo.api.gouv.fr/communes?code={code_commune}&format=geojson&geometry=contour&fields=code,nom"'
-    print(bbox_cmd)
-    process = subprocess.Popen(
-        bbox_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, shell=True
-    )
-    std_out, std_err = process.communicate()
-    if process.returncode != 0:
-        print(f"An error occurred: {std_err}")
-        return gpd.GeoDataFrame()
-    else:
-        data = json.loads(std_out)
-        gdf = gpd.GeoDataFrame.from_features(data, crs="EPSG:4326")
-        gdf.to_crs(epsg=2154, inplace=True)  # Convert the CRS to RGF93 / Lambert-93
-        return gdf
+def get_municipality_outline(code_commune: str | int):
+    """Get municipality contour from the IGN API with retry and timeout."""
+    empty_gdf = gpd.GeoDataFrame(columns=["code", "nom", "geometry"], geometry="geometry", crs="EPSG:2154")
 
+    base_url = "https://geo.api.gouv.fr/communes"
+    params = {
+        "code": str(code_commune),
+        "format": "geojson",
+        "geometry": "contour",
+        "fields": "code,nom",
+    }
+
+    max_retries = 3
+    timeout_seconds = 20
+
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.get(base_url, params=params, timeout=timeout_seconds)
+            status = response.status_code
+
+            if status >= 400:
+                if status in (429, 500, 502, 503, 504) and attempt < max_retries:
+                    delay = 2 ** (attempt - 1)
+                    print_infoBM(
+                        f"IGN contour API status {status} (attempt {attempt}/{max_retries}), retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+                print_infoBM(f"IGN contour API request failed with status {status}.")
+                return empty_gdf
+
+            if not response.text.strip():
+                if attempt < max_retries:
+                    delay = 2 ** (attempt - 1)
+                    print_infoBM(
+                        f"IGN contour API returned empty body (attempt {attempt}/{max_retries}), retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+                print_infoBM("IGN contour API returned an empty response body.")
+                return empty_gdf
+
+            data = response.json()
+            gdf = gpd.GeoDataFrame.from_features(data, crs="EPSG:4326")
+            if gdf.empty:
+                return empty_gdf
+            gdf.to_crs(epsg=2154, inplace=True)
+            return gdf
+
+        except (requests.Timeout, requests.ConnectionError, requests.JSONDecodeError) as e:
+            if attempt < max_retries:
+                delay = 2 ** (attempt - 1)
+                print_infoBM(
+                    f"IGN contour API transient error (attempt {attempt}/{max_retries}): {e}. Retrying in {delay}s..."
+                )
+                time.sleep(delay)
+                continue
+            print_infoBM(f"IGN contour API failed after {max_retries} attempts: {e}")
+            return empty_gdf
+        except Exception as e:
+            print_infoBM(f"Unexpected error while reading municipality contour: {e}")
+            return empty_gdf
+
+    return empty_gdf
 
 def pdalwrench_bin(bin_name: str) -> bool:
-    """Search for PDAL wrench binaries.
-
-    Args:
-        bin_name (str): name of binaries to search for.
-
-    Returns:
-        bool: boolean value if binaries are found.
     """
-    bin_path = find_executable(bin_name)
+    Search for PDAL wrench binaries and verify they can load shared libraries.
+    """
+    # 1. Check if the binary exists in PATH
+    bin_path = shutil.which(bin_name) # Modern replacement for find_executable
+    
     if bin_path is None:
-        msg = (
-            f"Unable to find executable {bin_name}\n"
-            f"Install PDAL_WRENCH and ensure it is in your PATH env variable\n"
-            "https://github.com/PDAL/wrench"
-        )
-        sys.exit(msg)
+        # Check if we are in a Conda environment and try to find it there manually
+        conda_bin = os.path.join(os.environ.get("CONDA_PREFIX", ""), "bin", bin_name)
+        if os.path.exists(conda_bin):
+            bin_path = conda_bin
+        else:
+            msg = (
+                f"CRITICAL: Executable '{bin_name}' not found in PATH.\n"
+                "Please install PDAL_WRENCH: conda install -c conda-forge pdal-wrench"
+            )
+            sys.exit(msg)
 
-    call = [bin_path]
-    print(" ".join(call))
-
+    # 2. Functional Test: Try to run '--help' to ensure shared libraries (.so files) load
     try:
+        # We use --help because it's a standard flag that should return 0 
+        # and triggers the loading of all linked libraries.
         result = subprocess.run(
-            call, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            [bin_path, "--help"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False # We handle the return code manually
         )
+
         if result.returncode == 0:
             return True
-        else:
-            # print(f"Error: {result.stderr}")
+        
+        # 3. Specific Library Error Handling
+        if "error while loading shared libraries" in result.stderr:
+            print(f"FATAL: {bin_name} is installed but broken.")
+            print(f"Missing Library Details: {result.stderr.strip()}")
+            # Optional: Provide the fix command in the logs
+            print("Try running: export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH")
             return False
+            
+        return False
+
     except Exception as e:
-        print(f"Exception occurred while checking {bin_name}: {e}")
+        print(f"Unexpected error validating {bin_name}: {e}")
         return False
 
 
@@ -545,7 +674,7 @@ def main(args: argparse.Namespace = None):
 
     # aoi_df = gpd.read_file(args.aoi_file, engine="pyogrio")
     municipality_gdf = get_municipality_info(code_com)
-    roi_name = municipality_gdf.nom.values[0]
+    roi_name = format_municipality_name(municipality_gdf.nom.values[0])
     print_infoBM(f"Processing {roi_name} . . .")
 
     interim_data_path = data_path / "interim" / roi_name
